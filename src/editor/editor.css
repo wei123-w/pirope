@@ -1,0 +1,76 @@
+:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#343d49;background:#f0f1f3;font-synthesis:none}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}[hidden]{display:none!important}
+body{display:grid;grid-template-rows:50px minmax(0,1fr)}
+body[data-operation="true"]{grid-template-rows:50px 42px minmax(0,1fr)}
+.tool-navigation{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;border-bottom:1px solid #e1e4e8;background:#fff;z-index:4}
+.tool-navigation span{font-size:12px;font-weight:600;color:#536172}
+.tool-navigation button{display:flex;align-items:center;justify-content:center;gap:3px;height:28px;padding:0 12px;border:0;border-radius:6px;font:12px "Segoe UI","Microsoft YaHei",sans-serif;cursor:pointer}
+.tool-navigation button:first-child{padding-left:4px;color:#59616c;background:transparent}
+.tool-navigation button:first-child:hover{color:#26313e;background:#f0f2f5}
+.tool-navigation svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.icon-definitions{position:absolute;width:0;height:0;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;background:#fff;border-bottom:1px solid #e1e4e8;z-index:5}
+.history,.tools,.actions{display:flex;align-items:center;gap:3px}.history{padding-right:10px;border-right:1px solid #e5e7eb}.tools{position:relative;gap:4px}.actions{gap:7px}
+header button{border:0;border-radius:6px;background:transparent;color:#59616c;font:12px "Segoe UI","Microsoft YaHei",sans-serif;cursor:pointer}
+.icon-button{height:32px;min-width:32px;display:flex;align-items:center;justify-content:center;padding:6px}
+header button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.with-chevron{gap:1px}.with-chevron svg.chevron{width:11px;height:11px}
+header button:hover{background:#f0f2f5;color:#26313e}header button[aria-pressed="true"]{color:#2463ae;background:#eaf2fd}
+header button:focus-visible{outline:2px solid #2463ae;outline-offset:2px}header button:disabled{opacity:.32;cursor:default}
+.primary{height:30px;padding:0 17px;background:#2463ae;color:#fff;font-weight:600}.primary:hover{background:#1b5498;color:#fff}
+.divider{width:1px;height:18px;margin:0 7px;background:#e5e7eb}
+.drawing-style{position:absolute;top:43px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:7px 9px;border:1px solid #e0e4e9;border-radius:8px;background:#fff;box-shadow:0 4px 14px #25334a16;z-index:10}
+.drawing-style::before{content:"";position:absolute;top:-5px;left:calc(50% - 5px);width:8px;height:8px;transform:rotate(45deg);background:#fff;border-top:1px solid #e0e4e9;border-left:1px solid #e0e4e9}
+.preset-colors,.preset-widths{display:flex;gap:3px}.drawing-style .divider{margin:0 5px}
+.color-chip,.width-chip{width:24px;height:26px;padding:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.color-chip::after{content:"";width:15px;height:15px;background:var(--chip-color);border:1px solid #0002;border-radius:2px}
+.color-chip[aria-pressed="true"]{outline:1px solid #6e97cb;outline-offset:-1px}
+.width-chip span{width:var(--dot-size);height:var(--dot-size);border-radius:50%;background:currentColor}
+.text-style{display:flex;align-items:center;gap:3px}
+.text-style .size-chip{width:24px;height:26px;padding:0;font-size:var(--text-size)}
+.text-input{position:fixed;left:0;top:0;transform-origin:0 0;z-index:4;box-sizing:content-box;margin:0;padding:0;border:0;outline:1px dashed #2463ae;background:#ffffff18;resize:none;overflow:hidden;white-space:pre;caret-color:#2463ae}
+#textBounds{position:fixed;left:0;top:0;transform-origin:0 0;outline:1px dashed #2463ae;pointer-events:none;z-index:4}
+#textBounds button{position:absolute;width:10px;height:10px;padding:0;border:1px solid #2463ae;border-radius:2px;background:#fff;pointer-events:auto;touch-action:none}
+#textBounds [data-text-corner="nw"]{left:-5px;top:-5px;cursor:nwse-resize}#textBounds [data-text-corner="ne"]{right:-5px;top:-5px;cursor:nesw-resize}
+#textBounds [data-text-corner="sw"]{left:-5px;bottom:-5px;cursor:nesw-resize}#textBounds [data-text-corner="se"]{right:-5px;bottom:-5px;cursor:nwse-resize}
+body[data-text="true"] #editor .FIE_tools-bar-wrapper{display:none!important}
+body[data-drawing="true"] #editor .FIE_annotation-option-triggerer[title="描边"],body[data-drawing="true"] #editor .FIE_color-picker-triggerer{display:none!important}
+.menu-anchor{position:relative}.popup{position:absolute;top:39px;left:0;min-width:152px;padding:5px;border:1px solid #e0e4e9;border-radius:9px;background:#fff;box-shadow:0 6px 20px #25334a1c;z-index:20}
+.popup>button{display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;height:31px;padding:0 10px;text-align:left;white-space:nowrap;color:#343d49}
+.popup hr{height:1px;border:0;background:#e9ebef;margin:5px 7px}.popup kbd{font:10px "Segoe UI",sans-serif;color:#939ba5}
+.more-menu{left:auto;right:0;min-width:246px;max-height:calc(100vh - 72px);overflow:auto}
+.zoom-controls{display:flex;align-items:center;justify-content:space-between;padding:2px 5px}.zoom-controls button{height:28px;min-width:30px}.zoom-controls #zoom{flex:1;color:#697380;font-size:11px}
+main{min-height:0;min-width:0;position:relative}#status{position:fixed;bottom:14px;left:16px;max-width:calc(100vw - 32px);padding:7px 11px;border:1px solid #e1e5eb;border-radius:7px;background:#ffffffed;font-size:11px;color:#65717f;z-index:6;pointer-events:none}#status:empty{display:none}#status.error{color:#bb514e}
+.busy main{pointer-events:none}
+#editor .FIE_root{border-radius:0!important;overflow:hidden!important;background:#f0f1f3!important}
+#editor .FIE_topbar,#editor .FIE_tabs{display:none!important}
+#editor .FIE_main-container{height:100%!important;min-height:0!important}
+#editor .FIE_editor-content{position:relative;width:100%!important;overflow:hidden!important}
+#editor .FIE_canvas-container{height:100%!important;min-height:0!important;padding:18px!important}
+#editor .FIE_canvas-node{background:transparent!important}
+#editor .FIE_tools-bar-wrapper{display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 32px);max-height:170px;padding:8px 12px;border:1px solid #e1e5eb;border-radius:9px;background:#fff;box-shadow:0 4px 14px #25334a12;z-index:3}
+body[data-options="true"] #editor .FIE_tools-bar-wrapper{display:block}
+#editor .FIE_tools-bar{display:none;padding:0!important}
+#editor .FIE_tool-options-wrapper{margin:0!important;min-height:24px;gap:16px!important}
+body[data-mode="crop"] #editor .FIE_tools-bar,body[data-mode="resize"] #editor .FIE_tools-bar,body[data-mode="finetune"] #editor .FIE_tools-bar,body[data-mode="filters"] #editor .FIE_tools-bar{display:flex}
+body[data-mode="crop"] #editor .FIE_rotate-tool-button,body[data-mode="crop"] #editor .FIE_flip-x-tool-button,body[data-mode="crop"] #editor .FIE_flip-y-tool-button{display:none!important}
+body[data-mode="crop"] #editor .FIE_tool-options-wrapper{display:none}
+body[data-mode="crop"] #editor .FIE_canvas-container,body[data-mode="rotate"] #editor .FIE_canvas-container,body[data-mode="resize"] #editor .FIE_canvas-container{padding-bottom:90px!important}
+body[data-mode="finetune"] #editor .FIE_canvas-container{padding-bottom:126px!important}
+body[data-mode="filters"] #editor .FIE_canvas-container{padding-bottom:140px!important}
+#editor .FIE_annotations-options{gap:12px!important}#editor .FIE_annotation-option-triggerer{border-radius:5px}
+#editor button,#editor input,#editor label,#editor select,.SfxModal-Wrapper{font-family:"Segoe UI","Microsoft YaHei",sans-serif!important}
+#editor input{color:#343d49!important;font-size:13px!important;border-radius:6px!important}
+#editor .FIE_rotate_button_left,#editor .FIE_rotate_button_right{min-width:96px;height:34px;padding:0 12px;border:1px solid #dce2ea;border-radius:7px;background:#fff;gap:8px}
+#editor .FIE_rotate_button_left:hover,#editor .FIE_rotate_button_right:hover{background:#f0f2f5}
+#editor .FIE_rotate_button_left label,#editor .FIE_rotate_button_right label{font:13px "Segoe UI","Microsoft YaHei",sans-serif!important;color:#536172;text-decoration:none}
+.SfxModal-Wrapper [role="dialog"]{border:1px solid #e0e4ea!important;border-radius:14px!important;background:#fff!important;box-shadow:0 12px 36px #25334a26!important}
+.SfxModal-Wrapper .SfxModalTitle-LabelPrimary{margin-bottom:12px!important;font:600 18px "Segoe UI","Microsoft YaHei",sans-serif!important;color:#283343!important}
+.SfxModal-Wrapper .SfxModalTitle-LabelSecondary{font:13px/21px "Segoe UI","Microsoft YaHei",sans-serif!important;color:#65717f!important}
+.SfxModal-Wrapper .SfxModalTitle-Icon{background:#edf4ff!important;border-radius:10px!important}
+.SfxModal-Wrapper .SfxModalTitle-Icon svg{color:#2463ae!important}
+.SfxModal-Wrapper .SfxButton-root{height:34px!important;border-radius:7px!important;font:13px "Segoe UI","Microsoft YaHei",sans-serif!important}
+.SfxModal-Wrapper .SfxButton-Label{font:inherit!important}
+.SfxModal-Wrapper .SfxButton-root:last-child{background:#2463ae!important;border-color:#2463ae!important;color:#fff!important}
+.SfxModal-Wrapper .SfxButton-root:last-child:hover{background:#1b5498!important}
+@media(max-width:760px){header{padding:0 10px;gap:6px}.tools{gap:1px}.divider{margin:0 4px}.history{padding-right:6px}.primary{padding:0 13px}}

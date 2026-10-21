@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+<title>图片编辑</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body data-mode="annotate" data-options="false">
+<svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="m8 5-5 5 5 5M3 10h10a6 6 0 0 1 0 12"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m16 5 5 5-5 5M21 10H11a6 6 0 0 0 0 12"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M3 18c2-5 3-13 6-13s-5 14-2 14 5-11 7-11-4 10-1 10c2 0 4-4 8-3"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19 19 5M9 5h10v10"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="m3 19 6-14 6 14M5 14h8M21 11v8m0-6c-1-3-5-3-5 1 0 4 5 3 5 0"/></symbol>
+  <symbol id="i-shapes" viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2"/><circle cx="16" cy="16" r="5"/></symbol>
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M7 3v14h14M3 7h14v14M10 7h7v7"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/><rect x="10" y="10" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-style" viewBox="0 0 24 24"><path d="M4 7h5m4 0h7M4 17h9m4 0h3"/><circle cx="11" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol>
+</defs></svg>
+<header aria-label="图片编辑工具栏">
+  <span id="filename" hidden></span>
+  <div class="history" role="group" aria-label="撤销与重做">
+    <button id="undo" class="icon-button" disabled title="撤销 · Ctrl+Z" aria-label="撤销"><svg><use href="#i-undo"/></svg></button>
+    <button id="redo" class="icon-button" disabled title="重做 · Ctrl+Shift+Z" aria-label="重做"><svg><use href="#i-redo"/></svg></button>
+  </div>
+  <div class="tools" role="group" aria-label="标注工具">
+    <button class="icon-button" data-tool="Pen" disabled title="画笔" aria-label="画笔" aria-pressed="false"><svg><use href="#i-pen"/></svg></button>
+    <button class="icon-button" data-tool="Arrow" disabled title="箭头" aria-label="箭头" aria-pressed="false"><svg><use href="#i-arrow"/></svg></button>
+    <button class="icon-button" data-tool="Text" disabled title="文字" aria-label="文字" aria-pressed="false"><svg><use href="#i-text"/></svg></button>
+    <div class="menu-anchor">
+      <button id="shapes" class="icon-button with-chevron" data-panel-toggle="shapeMenu" disabled title="形状" aria-label="形状" aria-haspopup="menu" aria-expanded="false" aria-pressed="true"><svg><use href="#i-shapes"/></svg><svg class="chevron"><use href="#i-chevron"/></svg></button>
+      <div id="shapeMenu" class="popup" role="menu" aria-label="形状" hidden>
+        <button data-tool="Rect" role="menuitem">矩形</button>
+        <button data-tool="Ellipse" role="menuitem">椭圆</button>
+        <button data-tool="Polygon" role="menuitem">多边形</button>
+        <button data-tool="Line" role="menuitem">直线</button>
+      </div>
+    </div>
+    <span class="divider" aria-hidden="true"></span>
+    <button class="icon-button" data-tool="Crop" disabled title="裁剪" aria-label="裁剪" aria-pressed="false"><svg><use href="#i-crop"/></svg></button>
+    <button class="icon-button" data-tool="Rotate" disabled title="旋转" aria-label="旋转" aria-pressed="false"><svg><use href="#i-rotate"/></svg></button>
+    <button id="style" class="icon-button" disabled title="更多样式" aria-label="更多样式" aria-pressed="false"><svg><use href="#i-style"/></svg></button>
+    <div id="drawingStyle" class="drawing-style" aria-label="颜色和粗细" hidden>
+      <div class="preset-colors" role="group" aria-label="固定颜色">
+        <button class="color-chip" data-color="#ffffff" style="--chip-color:#ffffff" disabled title="白色" aria-label="白色" aria-pressed="false"></button>
+        <button class="color-chip" data-color="#262626" style="--chip-color:#262626" disabled title="黑色" aria-label="黑色" aria-pressed="false"></button>
+        <button class="color-chip" data-color="#d64c46" style="--chip-color:#d64c46" disabled title="红色" aria-label="红色" aria-pressed="true"></button>
+        <button class="color-chip" data-color="#eaa33b" style="--chip-color:#eaa33b" disabled title="橙色" aria-label="橙色" aria-pressed="false"></button>
+        <button class="color-chip" data-color="#efce4a" style="--chip-color:#efce4a" disabled title="黄色" aria-label="黄色" aria-pressed="false"></button>
+        <button class="color-chip" data-color="#29965b" style="--chip-color:#29965b" disabled title="绿色" aria-label="绿色" aria-pressed="false"></button>
+        <button class="color-chip" data-color="#2463ae" style="--chip-color:#2463ae" disabled title="蓝色" aria-label="蓝色" aria-pressed="false"></button>
+        <button class="color-chip" data-color="#995bd5" style="--chip-color:#995bd5" disabled title="紫色" aria-label="紫色" aria-pressed="false"></button>
+      </div>
+      <span class="divider" aria-hidden="true"></span>
+      <div class="preset-widths" role="group" aria-label="粗细">
+        <button class="width-chip" data-width="2" style="--dot-size:4px" disabled title="细" aria-label="细" aria-pressed="false"><span></span></button>
+        <button class="width-chip" data-width="4" style="--dot-size:7px" disabled title="中" aria-label="中" aria-pressed="true"><span></span></button>
+        <button class="width-chip" data-width="8" style="--dot-size:10px" disabled title="粗" aria-label="粗" aria-pressed="false"><span></span></button>
+      </div>
+      <div class="text-style" role="group" aria-label="文字样式" hidden>
+        <button class="size-chip" data-size="16" style="--text-size:13px" disabled title="小" aria-label="小字号" aria-pressed="false">A</button>
+        <button class="size-chip" data-size="24" style="--text-size:17px" disabled title="中" aria-label="中字号" aria-pressed="true">A</button>
+        <button class="size-chip" data-size="36" style="--text-size:21px" disabled title="大" aria-label="大字号" aria-pressed="false">A</button>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="menu-anchor">
+      <button id="more" class="icon-button" data-panel-toggle="moreMenu" disabled title="更多" aria-label="更多" aria-haspopup="menu" aria-expanded="false"><svg><use href="#i-more"/></svg></button>
+      <div id="moreMenu" class="popup more-menu" role="menu" aria-label="更多操作" hidden>
+        <button id="copy" data-action="copy" role="menuitem">复制图片<kbd>Ctrl+Shift+C</kbd></button>
+        <button id="saveAs" data-action="saveAs" role="menuitem">另存为…<kbd>Ctrl+Shift+S</kbd></button>
+        <button id="saveOriginal" data-action="save" role="menuitem">保存<kbd>Ctrl+S</kbd></button>
+        <hr>
+        <button data-tool="Resize" role="menuitem">调整尺寸</button>
+        <button data-tool="Brightness" role="menuitem">调色</button>
+        <button data-tool="Filters" role="menuitem">滤镜</button>
+        <button data-tool="Image" role="menuitem">插入图片</button>
+        <hr>
+        <button data-native=".FIE_flip-x-tool-button" data-flip role="menuitem">水平翻转</button>
+        <button data-native=".FIE_flip-y-tool-button" data-flip role="menuitem">垂直翻转</button>
+        <button id="compare" role="menuitem" title="按住查看原图">按住查看原图</button>
+        <button data-native=".FIE_topbar-reset-button" role="menuitem">恢复原图…</button>
+        <hr>
+        <div class="zoom-controls" role="group" aria-label="画布缩放">
+          <button data-native=".FIE_topbar-zoom-out-btn" data-keep-menu title="缩小" aria-label="缩小">−</button>
+          <button id="zoom" data-native=".FIE_topbar-zoom-label" data-keep-menu title="适应窗口">适应窗口</button>
+          <button data-native=".FIE_topbar-zoom-in-btn" data-keep-menu title="放大" aria-label="放大">+</button>
+        </div>
+      </div>
+    </div>
+    <button id="save" class="primary" data-action="finish" disabled title="保存并关闭">完成</button>
+  </div>
+</header>
+<div id="toolNavigation" class="tool-navigation" role="group" aria-label="当前操作" hidden>
+  <button id="toolBack" title="取消本次操作并返回"><svg aria-hidden="true"><use href="#i-back"/></svg>返回</button>
+  <span id="toolTitle"></span>
+  <button id="toolApply" class="primary" title="应用当前效果，继续编辑">应用</button>
+</div>
+<main id="editor" aria-label="图片画布"></main>
+<div id="textBounds" role="group" aria-label="文字框大小" hidden>
+  <button data-text-corner="nw" aria-label="左上角缩放文字" title="等比例缩放"></button>
+  <button data-text-corner="ne" aria-label="右上角缩放文字" title="等比例缩放"></button>
+  <button data-text-corner="sw" aria-label="左下角缩放文字" title="等比例缩放"></button>
+  <button data-text-corner="se" aria-label="右下角缩放文字" title="等比例缩放"></button>
+</div>
+<span id="status" role="status">正在打开图片…</span>
+<script src="filerobot-image-editor.min.js"></script>
+<script src="translations.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

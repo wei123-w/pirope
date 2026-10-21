@@ -1,0 +1,21 @@
+window.editorTranslations = {
+  name:'名称',save:'保存',saveAs:'另存为',back:'返回',loading:'正在加载…',resetOperations:'重置全部编辑',
+  changesLoseWarningHint:'重置后会清除本次编辑，是否继续？',discardChangesWarningHint:'本次编辑尚未保存。',
+  cancel:'取消',apply:'应用',warning:'提示',confirm:'确定',discardChanges:'放弃更改',
+  undoTitle:'撤销',redoTitle:'重做',showImageTitle:'查看原图',zoomInTitle:'放大',zoomOutTitle:'缩小',toggleZoomMenuTitle:'缩放比例',
+  adjustTab:'裁剪与旋转',finetuneTab:'调色',filtersTab:'滤镜',watermarkTab:'水印',annotateTabLabel:'标注',resize:'调整尺寸',resizeTab:'调整尺寸',
+  imageName:'图片名称',invalidImageError:'无法读取这张图片。',uploadImageError:'无法读取所选图片。',areNotImages:'不是图片',isNotImage:'不是图片',toBeUploaded:'待添加',
+  cropTool:'裁剪',original:'原始比例',custom:'自由比例',square:'正方形',landscape:'横向',portrait:'纵向',ellipse:'椭圆',classicTv:'4:3',cinemascope:'宽银幕',
+  arrowTool:'箭头',blurTool:'整图模糊',brightnessTool:'亮度',contrastTool:'对比度',ellipseTool:'椭圆',
+  unFlipX:'取消水平翻转',flipX:'水平翻转',unFlipY:'取消垂直翻转',flipY:'垂直翻转',hsvTool:'色相与饱和度',hue:'色相',brightness:'亮度',saturation:'饱和度',value:'明度',
+  imageTool:'贴图',importing:'正在添加…',addImage:'+ 添加图片',uploadImage:'选择图片',fromGallery:'图片库',
+  lineTool:'直线',penTool:'画笔',polygonTool:'多边形',sides:'边数',rectangleTool:'矩形',cornerRadius:'圆角',
+  resizeWidthTitle:'宽度（像素）',resizeHeightTitle:'高度（像素）',toggleRatioLockTitle:'锁定宽高比',resetSize:'恢复原始尺寸',rotateTool:'旋转',
+  textTool:'文字',textSpacings:'文字间距',textAlignment:'文字对齐',fontFamily:'字体',size:'字号',letterSpacing:'字间距',lineHeight:'行距',warmthTool:'色温',
+  addWatermark:'+ 添加水印',addTextWatermark:'+ 添加文字水印',addWatermarkTitle:'选择水印类型',uploadWatermark:'选择水印图片',addWatermarkAsText:'文字水印',
+  padding:'边距',paddings:'边距',shadow:'阴影',horizontal:'水平',vertical:'垂直',blur:'模糊',opacity:'不透明度',transparency:'透明度',position:'位置',stroke:'描边',
+  saveAsModalTitle:'另存为',extension:'扩展名',format:'格式',nameIsRequired:'请输入名称。',quality:'质量',imageDimensionsHoverTitle:'导出尺寸（宽 × 高）',
+  cropSizeLowerThanResizedWarning:'裁剪区域小于调整后的尺寸，放大可能影响清晰度。',actualSize:'原始大小（100%）',fitSize:'适合窗口',
+  addImageTitle:'选择要添加的图片…',mutualizedFailedToLoadImg:'无法读取图片。',tabsMenu:'工具',download:'保存',width:'宽度',height:'高度',plus:'+',cropItemNoEffect:'此比例暂无预览',
+  pixelateTool:'整图像素化',thresholdTool:'黑白阈值',posterizeTool:'色阶',noiseTool:'噪点',watermark:'水印'
+};

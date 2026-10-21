@@ -1,0 +1,23 @@
+PicRope · 图绳
+
+本项目以 Tendedero 为上游进行 Windows 移植：
+https://github.com/alejandrobujan/tendedero
+上游参考版本：db65d2ea84ba5120b4ed90acce2b457d4ad18c4b
+
+原版权声明：Copyright (c) 2026 Alejandro Buján
+完整 MIT 许可及上游名称、图标条款见 LICENSE。
+
+Windows 实现使用 C#、WPF 和 Windows 系统接口。
+本项目是独立社区移植版本，不代表上游项目，未获得上游作者背书。
+英文名称为 PicRope，中文名称为「图绳」，使用独立设计的奶白木夹图标。
+
+内置图片编辑器：Filerobot Image Editor 4.9.1
+https://github.com/scaleflex/filerobot-image-editor
+Copyright (c) 2022 scaleflex，MIT 许可。
+浏览器发行文件另标注 Copyright (c) 2019 Scaleflex。
+完整许可及组件依赖声明见 third-party-notices/Filerobot。
+
+桌面网页容器：Microsoft WebView2 SDK 1.0.4258.31
+https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31
+Copyright (C) Microsoft Corporation. All rights reserved.
+完整许可及第三方声明见 third-party-notices/WebView2。

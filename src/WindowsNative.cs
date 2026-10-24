@@ -151,6 +151,7 @@ namespace ScreenLine
                 var defaults = new SavedState();
                 configured.ToggleShortcut = defaults.ToggleShortcut; configured.RegionShortcut = defaults.RegionShortcut;
                 configured.FullScreenShortcut = defaults.FullScreenShortcut; configured.WindowShortcut = defaults.WindowShortcut; configured.DelayShortcut = defaults.DelayShortcut;
+                configured.TranslateShortcut = defaults.TranslateShortcut; configured.ExplainShortcut = defaults.ExplainShortcut; configured.TextExtractShortcut = defaults.TextExtractShortcut;
                 if (!ApplyShortcuts(configured, out ignored))
                 {
                     configured.RegionShortcut = configured.FullScreenShortcut = configured.WindowShortcut = configured.DelayShortcut = null;
@@ -161,7 +162,7 @@ namespace ScreenLine
 
         public bool ApplyShortcuts(SavedState state, out string error)
         {
-            var candidates = new Dictionary<int, string> { { 1, state.ToggleShortcut }, { 2, state.RegionShortcut }, { 3, state.FullScreenShortcut }, { 4, state.WindowShortcut }, { 5, state.DelayShortcut } };
+            var candidates = new Dictionary<int, string> { { 1, state.ToggleShortcut }, { 2, state.RegionShortcut }, { 3, state.FullScreenShortcut }, { 4, state.WindowShortcut }, { 5, state.DelayShortcut }, { 6, state.TranslateShortcut }, { 7, state.ExplainShortcut }, { 8, state.TextExtractShortcut } };
             var previous = registered.ToDictionary(item => item.Key, item => item.Value);
             foreach (int id in registered.Keys.ToArray()) WindowsNative.UnregisterHotKey(source.Handle, id);
             registered.Clear();

@@ -399,6 +399,7 @@ document.getElementById('editor').addEventListener('dblclick',event=>{
   if(activeTool==='Text'&&event.target.closest('.konvajs-content'))event.stopImmediatePropagation();
 },true);
 document.addEventListener('keydown',event=>{
+  if(window.handleCaptureKeydown?.(event))return;
   if(busy){event.preventDefault();event.stopImmediatePropagation();return;}
   if(textResize&&event.key==='Escape'){
     event.preventDefault();event.stopImmediatePropagation();finishTextResize(true);return;

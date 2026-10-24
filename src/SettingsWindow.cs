@@ -14,11 +14,18 @@ namespace ScreenLine
         readonly SavedState original;
         readonly Action<SavedState> save;
         readonly Dictionary<string, TextBox> shortcuts = new Dictionary<string, TextBox>();
+        readonly Dictionary<string, TextBox> annotationShortcuts = new Dictionary<string, TextBox>(StringComparer.OrdinalIgnoreCase);
         readonly CheckBox revealOnStartup;
         readonly CheckBox launchOnStartup;
         readonly TextBox folder;
         readonly ComboBox format, action;
         readonly ComboBox delay;
+        readonly ComboBox aiProvider;
+        readonly TextBox aiEndpoint;
+        readonly TextBox aiModel;
+        readonly PasswordBox aiApiKey;
+        readonly Button testAiButton;
+        readonly TextBlock aiTestStatus;
         readonly TextBox workflowName = new TextBox { Height = 34, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 3, 8, 3), BorderBrush = Brush("#DCE2EA"), Background = Brush("#FAFBFC"), Foreground = Brush("#283343") };
         readonly ComboBox workflowMode;
         readonly ComboBox workflowAction;
@@ -67,16 +74,51 @@ namespace ScreenLine
             general.Children.Add(launchOnStartup);
             general.Children.Add(Note("原有剪贴板收集与“新截图自动挂上”开关继续由托盘面板独立控制。"));
 
-            var hotkeyPage = Page(); tabs.Items.Add(new TabItem { Header = "快捷键", Content = hotkeyPage });
+            var hotkeyPage = Page(); tabs.Items.Add(new TabItem { Header = "快捷键", Content = new ScrollViewer { Content = hotkeyPage, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
             hotkeyPage.Children.Add(SectionTitle("全局快捷键", "点击快捷键框后直接按下组合键。"));
             AddShortcut(hotkeyPage, "显示 / 收起绳子", "ToggleShortcut", state.ToggleShortcut, false);
             AddShortcut(hotkeyPage, "框选截图", "RegionShortcut", state.RegionShortcut, false);
             AddShortcut(hotkeyPage, "全屏截图", "FullScreenShortcut", state.FullScreenShortcut, false);
             AddShortcut(hotkeyPage, "活动窗口截图", "WindowShortcut", state.WindowShortcut, false);
             AddShortcut(hotkeyPage, "延时截图", "DelayShortcut", state.DelayShortcut, false);
+            AddShortcut(hotkeyPage, "AI 翻译", "TranslateShortcut", state.TranslateShortcut, false);
+            AddShortcut(hotkeyPage, "AI 解释", "ExplainShortcut", state.ExplainShortcut, false);
+            AddShortcut(hotkeyPage, "AI 文字提取", "TextExtractShortcut", state.TextExtractShortcut, false);
             shortcutHint = Note("快捷键至少包含 Ctrl、Alt、Shift 或 Win 中的一项。聚焦输入框后直接按键；Esc 或退格可清除。");
             hotkeyPage.Children.Add(shortcutHint);
+            hotkeyPage.Children.Add(SectionTitle("标注工具快捷键", "进入截图标注后生效，聚焦输入框后直接按键设置。"));
+            foreach (var item in AnnotationToolNames()) AddAnnotationShortcut(hotkeyPage, item.Value, item.Key, state.AnnotationHotkeys[item.Key]);
+            hotkeyPage.Children.Add(Note("标注快捷键只在截图标注窗口中生效；单键和组合键均可设置。"));
 
+            var aiPage = Page(); tabs.Items.Add(new TabItem { Header = "AI 配置", Content = new ScrollViewer { Content = aiPage, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
+            aiPage.Children.Add(SectionTitle("兼容接口配置", "选择服务商预设可自动填写接口地址；模型名称和密钥按服务商控制台填写，也可使用自定义兼容接口。"));
+            aiProvider = Choice(AiService.ProviderNames, AiService.ProviderForEndpoint(state.AiEndpoint));
+            aiEndpoint = new TextBox { Text = state.AiEndpoint, Height = 36, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 3, 8, 3), BorderBrush = Brush("#DCE2EA"), Background = Brush("#FAFBFC"), Foreground = Brush("#283343") };
+            aiModel = new TextBox { Text = state.AiModel, Height = 36, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 3, 8, 3), BorderBrush = Brush("#DCE2EA"), Background = Brush("#FAFBFC"), Foreground = Brush("#283343") };
+            aiApiKey = new PasswordBox { Password = state.AiApiKey ?? "", Height = 36, Padding = new Thickness(8, 3, 8, 3), BorderBrush = Brush("#DCE2EA"), Background = Brush("#FAFBFC"), Foreground = Brush("#283343") };
+            aiPage.Children.Add(Row("服务商预设", aiProvider)); aiPage.Children.Add(Row("接口地址", aiEndpoint)); aiPage.Children.Add(Row("模型名称", aiModel)); aiPage.Children.Add(Row("API 密钥（本机加密保存）", aiApiKey));
+            aiProvider.SelectionChanged += delegate
+            {
+                string endpoint = AiService.ProviderEndpoint(aiProvider.SelectedItem as string);
+                if (endpoint != null) aiEndpoint.Text = endpoint;
+            };
+            testAiButton = LightTheme.Button("测试连接", delegate { });
+            testAiButton.Margin = new Thickness(0, 8, 10, 0);
+            testAiButton.Click += async delegate { await TestAiConnection(); };
+            aiTestStatus = new TextBlock { Text = "", MaxWidth = 420, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Foreground = Brush("#65717F"), Margin = new Thickness(0, 8, 0, 0) };
+            aiEndpoint.TextChanged += delegate
+            {
+                aiTestStatus.Text = "";
+                string provider = aiProvider.SelectedItem as string;
+                string presetEndpoint = AiService.ProviderEndpoint(provider);
+                if (presetEndpoint != null && !string.Equals(aiEndpoint.Text.TrimEnd('/'), presetEndpoint.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) aiProvider.SelectedItem = "自定义接口";
+            };
+            aiModel.TextChanged += delegate { aiTestStatus.Text = ""; };
+            aiApiKey.PasswordChanged += delegate { aiTestStatus.Text = ""; };
+            var testRow = new StackPanel { Orientation = Orientation.Horizontal };
+            testRow.Children.Add(testAiButton); testRow.Children.Add(aiTestStatus);
+            aiPage.Children.Add(testRow);
+            aiPage.Children.Add(Note("截图翻译和解释要求所选模型支持图片输入；兼容接口不代表所有模型都支持看图。额度、价格和模型权限以服务商为准。密钥使用 Windows 当前用户加密保存；只在点击翻译或解释时发送截图。"));
             var capturePage = Page(); tabs.Items.Add(new TabItem { Header = "截图" , Content = new ScrollViewer { Content = capturePage, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
             capturePage.Children.Add(SectionTitle("截图偏好", "设置默认保存方式和截图完成后的操作。"));
             format = Choice(new[] { "PNG", "JPG", "BMP" }, state.ScreenshotFormat);
@@ -150,15 +192,93 @@ namespace ScreenLine
             error.Text = ""; shortcutHint.Text = "已录入“" + box.Text + "”。点击其他输入框可继续设置。"; shortcutHint.Foreground = Brush("#65717F");
         }
 
+        void AddAnnotationShortcut(Panel panel, string label, string name, string value)
+        {
+            var box = new TextBox { Text = value, MinWidth = 190, Height = 36, Tag = name, VerticalContentAlignment = VerticalAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(10, 0, 4, 0), FontSize = 13, Foreground = Brush("#283343") };
+            box.PreviewKeyDown += CaptureAnnotationKey;
+            annotationShortcuts[name] = box;
+            var frame = new Border { BorderBrush = Brush("#DCE2EA"), BorderThickness = new Thickness(1), Background = Brush("#FAFBFC"), CornerRadius = new CornerRadius(7), Child = box };
+            box.GotKeyboardFocus += delegate { frame.BorderBrush = Brush("#4B83C3"); frame.BorderThickness = new Thickness(2); frame.Background = Brushes.White; shortcutHint.Text = "正在录入“" + label + "”：直接按一个键或键盘组合。退格删除，Esc 清空。"; shortcutHint.Foreground = Brush("#2463AE"); };
+            box.LostKeyboardFocus += delegate { frame.BorderBrush = Brush("#DCE2EA"); frame.BorderThickness = new Thickness(1); frame.Background = Brush("#FAFBFC"); };
+            var record = LightTheme.Button("录入", delegate { box.Focus(); error.Text = ""; }, "quiet"); record.MinWidth = 48; record.Height = 30; record.Margin = new Thickness(2);
+            var entry = new DockPanel(); DockPanel.SetDock(record, Dock.Right); entry.Children.Add(record); entry.Children.Add(frame);
+            var row = Row(label, entry); row.Margin = new Thickness(0, 4, 0, 4);
+            panel.Children.Add(new Border { Child = row, Background = Brushes.White, BorderBrush = Brush("#E8EBEF"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 5, 8, 5), Margin = new Thickness(0, 0, 0, 7) });
+        }
+
+        void CaptureAnnotationKey(object sender, KeyEventArgs args)
+        {
+            var box = (TextBox)sender;
+            args.Handled = true;
+            Key key = args.Key == Key.System ? args.SystemKey : args.Key;
+            if (key == Key.Escape || key == Key.Back) { box.Clear(); error.Text = ""; return; }
+            if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt || key == Key.LeftShift || key == Key.RightShift || key == Key.LWin || key == Key.RWin) return;
+            var parts = new List<string>();
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) parts.Add("Ctrl");
+            if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) parts.Add("Alt");
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) parts.Add("Shift");
+            if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0) parts.Add("Win");
+            string keyName = NormalizeAnnotationKey(key);
+            parts.Add(keyName);
+            box.Text = string.Join("+", parts);
+            error.Text = "";
+        }
+
+        static string NormalizeAnnotationKey(Key key)
+        {
+            if (key >= Key.D0 && key <= Key.D9) return ((int)key - (int)Key.D0).ToString();
+            if (key >= Key.NumPad0 && key <= Key.NumPad9) return "Numpad" + ((int)key - (int)Key.NumPad0);
+            string name = key.ToString();
+            switch (name)
+            {
+                case "Oem1": return "Semicolon";
+                case "OemPlus": return "Equal";
+                case "OemComma": return "Comma";
+                case "OemMinus": return "Minus";
+                case "OemPeriod": return "Period";
+                case "OemQuestion": return "Slash";
+                case "Oem3": return "Backquote";
+                case "Oem4": return "BracketLeft";
+                case "Oem5": return "Backslash";
+                case "Oem6": return "BracketRight";
+                case "Oem7": return "Quote";
+                case "Return": return "Enter";
+                case "Back": return "Backspace";
+                case "Left": return "ArrowLeft";
+                case "Right": return "ArrowRight";
+                case "Up": return "ArrowUp";
+                case "Down": return "ArrowDown";
+                case "Capital": return "CapsLock";
+                default: return name;
+            }
+        }
+
+        static KeyValuePair<string, string>[] AnnotationToolNames()
+        {
+            return new[] {
+                new KeyValuePair<string, string>("Rect", "矩形"), new KeyValuePair<string, string>("Ellipse", "圆形"),
+                new KeyValuePair<string, string>("Arrow", "箭头"), new KeyValuePair<string, string>("Pen", "画笔"),
+                new KeyValuePair<string, string>("Mosaic", "马赛克"), new KeyValuePair<string, string>("Text", "文字"),
+                new KeyValuePair<string, string>("Highlight", "高亮"), new KeyValuePair<string, string>("Number", "序号"),
+                new KeyValuePair<string, string>("Eyedropper", "取色")
+            };
+        }
+
         void Save(object sender, RoutedEventArgs args)
         {
             var values = shortcuts.ToDictionary(pair => pair.Key, pair => pair.Value.Text.Trim(), StringComparer.Ordinal);
             if (values.Values.Any(value => string.IsNullOrWhiteSpace(value))) { error.Text = "快捷键不能为空。"; return; }
             if (values.Values.Any(value => value.EndsWith("+…", StringComparison.Ordinal))) { error.Text = "组合键还未录入完成，请再按一个主键。"; return; }
             if (values.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count() != values.Count) { error.Text = "快捷键不能重复，请修改冲突项。"; return; }
+            var annotationValues = annotationShortcuts.ToDictionary(pair => pair.Key, pair => pair.Value.Text.Trim(), StringComparer.OrdinalIgnoreCase);
+            if (annotationValues.Values.Any(value => string.IsNullOrWhiteSpace(value))) { error.Text = "标注工具快捷键不能为空。"; return; }
+            if (annotationValues.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count() != annotationValues.Count) { error.Text = "标注工具快捷键不能重复。"; return; }
             var draft = Copy(original);
             draft.ToggleShortcut = values["ToggleShortcut"]; draft.RegionShortcut = values["RegionShortcut"];
             draft.FullScreenShortcut = values["FullScreenShortcut"]; draft.WindowShortcut = values["WindowShortcut"]; draft.DelayShortcut = values["DelayShortcut"];
+            draft.AnnotationHotkeys = annotationValues;
+            draft.TranslateShortcut = values["TranslateShortcut"]; draft.ExplainShortcut = values["ExplainShortcut"]; draft.TextExtractShortcut = values["TextExtractShortcut"];
+            draft.AiEndpoint = aiEndpoint.Text.Trim(); draft.AiModel = aiModel.Text.Trim(); draft.AiApiKey = aiApiKey.Password;
             draft.RevealOnStartup = revealOnStartup.IsChecked == true;
             draft.LaunchOnStartup = launchOnStartup.IsChecked == true;
             draft.ScreenshotFolder = folder.Text.Trim(); draft.ScreenshotFormat = format.SelectedItem as string;
@@ -169,10 +289,32 @@ namespace ScreenLine
             catch (Exception exception) { error.Text = "保存失败：" + exception.Message; }
         }
 
+        async System.Threading.Tasks.Task TestAiConnection()
+        {
+            testAiButton.IsEnabled = false;
+            aiTestStatus.Foreground = Brush("#65717F");
+            aiTestStatus.Text = "正在测试接口……";
+            try
+            {
+                var settings = new SavedState { AiEndpoint = aiEndpoint.Text.Trim(), AiModel = aiModel.Text.Trim(), AiApiKey = aiApiKey.Password };
+                string result = await AiService.TestConnectionAsync(settings);
+                aiTestStatus.Foreground = Brush("#218449");
+                aiTestStatus.Text = "连接成功，模型回复：" + (string.IsNullOrWhiteSpace(result) ? "（空响应）" : result.Trim());
+            }
+            catch (Exception exception)
+            {
+                aiTestStatus.Foreground = Brush("#B84343");
+                aiTestStatus.Text = "连接失败：" + exception.Message;
+            }
+            finally { testAiButton.IsEnabled = true; }
+        }
+
         void Reset(object sender, RoutedEventArgs args)
         {
             var defaults = new SavedState();
             foreach (var pair in shortcuts) pair.Value.Text = (string)typeof(SavedState).GetProperty(pair.Key).GetValue(defaults, null);
+            foreach (var pair in defaults.AnnotationHotkeys) annotationShortcuts[pair.Key].Text = pair.Value;
+            aiProvider.SelectedItem = AiService.ProviderForEndpoint(defaults.AiEndpoint); aiEndpoint.Text = defaults.AiEndpoint; aiModel.Text = defaults.AiModel; aiApiKey.Password = "";
             shortcutHint.Text = "快捷键至少包含 Ctrl、Alt、Shift 或 Win 中的一项。聚焦输入框后直接按键；Esc 或退格可清除。"; shortcutHint.Foreground = Brush("#65717F");
             revealOnStartup.IsChecked = defaults.RevealOnStartup; launchOnStartup.IsChecked = false; folder.Text = WindowsNative.ScreenshotFolder();
             format.SelectedItem = "PNG"; delay.SelectedItem = "3"; action.SelectedItem = "不弹出窗口"; error.Text = "默认值已恢复；点击保存后生效。";
@@ -209,7 +351,9 @@ namespace ScreenLine
                 CollectClipboard = source.CollectClipboard, CollectTextClipboard = source.CollectTextClipboard, AutoHang = source.AutoHang,
                 Theme = source.Theme, LastUpdateNotification = source.LastUpdateNotification, ToggleShortcut = source.ToggleShortcut,
                 RegionShortcut = source.RegionShortcut, FullScreenShortcut = source.FullScreenShortcut, WindowShortcut = source.WindowShortcut,
-                DelayShortcut = source.DelayShortcut, ScreenshotFolder = source.ScreenshotFolder, ScreenshotFormat = source.ScreenshotFormat,
+                DelayShortcut = source.DelayShortcut, TranslateShortcut = source.TranslateShortcut, ExplainShortcut = source.ExplainShortcut, TextExtractShortcut = source.TextExtractShortcut,
+                AiEndpoint = source.AiEndpoint, AiModel = source.AiModel, AiApiKey = source.AiApiKey, AiApiKeyProtected = source.AiApiKeyProtected, ScreenshotFolder = source.ScreenshotFolder, ScreenshotFormat = source.ScreenshotFormat,
+                AnnotationHotkeys = new Dictionary<string, string>(source.AnnotationHotkeys ?? new SavedState().AnnotationHotkeys, StringComparer.OrdinalIgnoreCase),
                 DelaySeconds = source.DelaySeconds, ScreenshotAction = source.ScreenshotAction, RevealOnStartup = source.RevealOnStartup, LaunchOnStartup = source.LaunchOnStartup,
                 Images = source.Images, Collection = source.Collection, Texts = source.Texts, RecentCaptures = source.RecentCaptures, WorkflowPresets = source.WorkflowPresets
             };

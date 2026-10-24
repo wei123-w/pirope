@@ -3,11 +3,12 @@ import io
 import json
 import sys
 import threading
+import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parent.parent
@@ -42,6 +43,14 @@ def check(condition, title):
     assert condition, title
     checks += 1
     print('通过：' + title, flush=True)
+
+def wait_for_condition(page, expression, timeout=8):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if page.evaluate(expression):
+            return
+        page.wait_for_timeout(50)
+    raise AssertionError(f'等待页面状态超时：{expression}')
 
 try:
     with sync_playwright() as playwright:
@@ -293,7 +302,7 @@ try:
         result_image = Image.open(io.BytesIO(png)).convert('RGB')
         result_image.save(preview / '中文文字导出.png')
         original_image = image.convert('RGB')
-        new_red = sum(1 for current, original in zip(result_image.get_flattened_data(), original_image.get_flattened_data()) if current[0] > 140 and current[0] > current[1] * 1.5 and current != original)
+        new_red = sum(1 for current, original in zip(result_image.getdata(), original_image.getdata()) if current[0] > 140 and current[0] > current[1] * 1.5 and current != original)
         check(result_image.size == (960, 600) and new_red > 200, '完整分辨率导出的图片包含实际中文文字像素')
         page.evaluate('completeAction({success:true,saved:false,message:"已保存"})')
         page.screenshot(path=str(preview / '中文文字编辑_完成.png'))
@@ -368,7 +377,7 @@ try:
         check(page.locator('#toolBack').is_visible() and page.locator('#toolApply').is_visible(), '插入图片面板提供返回和应用按钮')
         previous_undo_count = page.evaluate('async()=>{const state=await readState();return state.pastDesignStates.length}')
         page.locator('input[type="file"]').set_input_files({'name': '贴图.png', 'mimeType': 'image/png', 'buffer': buffer.getvalue()})
-        page.wait_for_function('Object.values(editor.getCurrentImgData().designState.annotations).some(item=>item.name==="Image")')
+        wait_for_condition(page, 'Object.values(editor.getCurrentImgData().designState.annotations).some(item=>item.name==="Image")')
         check(len(annotations()) == 4, '插入图片仍可从本地文件加载贴图')
         page.locator('#toolBack').click()
         page.wait_for_timeout(100)
@@ -416,11 +425,81 @@ try:
         page.get_by_role('menuitem', name='滤镜', exact=True).click()
         page.locator('.FIE_filters-item').nth(1).click()
         page.locator('#save').click()
-        page.wait_for_function('messages.findLast(message=>message.action==="save").closeAfterSave')
+        wait_for_condition(page, 'messages.findLast(message=>message.action==="save")?.closeAfterSave')
         message = page.evaluate('messages.findLast(message=>message.action==="save")')
         check(message['closeAfterSave'] and len(base64.b64decode(message['data'].split(',')[1])) > 100, '完成按钮发送保存并关闭请求，包含完整编辑结果')
         check(not page.locator('#toolNavigation').is_visible(), '在单项操作中直接完成时先应用当前预览，再保存整张图片')
         check(not errors and not external, '所有资源在本机加载，没有脚本错误或外部请求')
+        capture_page = browser.new_page(viewport={'width': 1000, 'height': 650})
+        capture_page.set_default_timeout(8000)
+        capture_page.add_init_script('window.messages=[]; window.chrome={webview:{postMessage:message=>messages.push(message)}};')
+        capture_page.route('**/*', route_request)
+        capture_page.goto(f'http://127.0.0.1:{server.server_port}/index.html', wait_until='networkidle')
+        hotkeys = {'Rect': '1', 'Ellipse': '2', 'Arrow': '3', 'Pen': '4', 'Mosaic': '5', 'Text': '6', 'Highlight': '7', 'Number': '8', 'Eyedropper': '9'}
+        hotkeys['Rect'] = 'Ctrl+Shift+Minus'
+        capture_page.evaluate('options=>startEditor(options)', {'name': 'capture.png', 'source': source, 'mode': 'capture', 'hotkeys': hotkeys})
+        capture_page.locator('#captureCanvas').wait_for(state='attached')
+        check(capture_page.locator('[data-capture-tool]').count() == 9, '截图模式显示九种标注工具')
+        capture_page.locator('[data-capture-tool="Pen"]').click()
+        capture_page.evaluate("document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'_',code:'Minus',ctrlKey:true,shiftKey:true,bubbles:true}))")
+        check(capture_page.locator('[data-capture-tool="Rect"]').get_attribute('aria-pressed') == 'true', '配置标点键和 Shift 组合后能从其他工具切换到矩形')
+        capture_page.keyboard.press('5')
+        check(capture_page.locator('[data-capture-tool="Mosaic"]').get_attribute('aria-pressed') == 'true', '截图模式按配置快捷键切换到马赛克工具')
+        capture_page.evaluate("document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'2',code:'Numpad2',bubbles:true}))")
+        check(capture_page.locator('[data-capture-tool="Ellipse"]').get_attribute('aria-pressed') == 'true', '数字小键盘也能触发数字快捷键')
+        capture_page.locator('#captureCancel').click()
+        check(capture_page.evaluate('messages.some(message=>message.action==="cancel")'), '截图模式取消只发送丢弃请求')
+        capture_page.reload(wait_until='networkidle')
+        capture_page.evaluate('options=>startEditor(options)', {'name': 'capture.png', 'source': source, 'mode': 'capture', 'hotkeys': hotkeys})
+        capture_page.locator('#captureCanvas').wait_for(state='attached')
+        capture_page.locator('[data-capture-tool="Text"]').click()
+        canvas_box = capture_page.locator('#captureCanvas').bounding_box()
+        capture_page.mouse.click(canvas_box['x'] + canvas_box['width'] * .25, canvas_box['y'] + canvas_box['height'] * .25)
+        text_input = capture_page.locator('.capture-text-editor')
+        text_input.fill('标注文字')
+        text_input.press('5')
+        check(capture_page.locator('[data-capture-tool="Text"]').get_attribute('aria-pressed') == 'true' and text_input.input_value() == '标注文字5', '文字输入时数字键仍输入文字而不切换标注工具')
+        text_input.press('Escape')
+
+        def capture_drag(tool):
+            capture_page.locator(f'[data-capture-tool="{tool}"]').click()
+            box = capture_page.locator('#captureCanvas').bounding_box()
+            capture_page.mouse.move(box['x'] + box['width'] * .32, box['y'] + box['height'] * .32)
+            capture_page.mouse.down()
+            capture_page.mouse.move(box['x'] + box['width'] * .58, box['y'] + box['height'] * .52, steps=8)
+            capture_page.mouse.up()
+
+        for tool in ['Rect', 'Ellipse', 'Arrow', 'Pen', 'Mosaic', 'Highlight']:
+            capture_drag(tool)
+        capture_page.locator('[data-capture-tool="Text"]').click()
+        canvas_box = capture_page.locator('#captureCanvas').bounding_box()
+        capture_page.mouse.click(canvas_box['x'] + canvas_box['width'] * .62, canvas_box['y'] + canvas_box['height'] * .3)
+        capture_page.locator('.capture-text-editor').fill('说明')
+        capture_page.locator('.capture-text-editor').press('Enter')
+        capture_page.locator('[data-capture-tool="Number"]').click()
+        capture_page.mouse.click(canvas_box['x'] + canvas_box['width'] * .72, canvas_box['y'] + canvas_box['height'] * .6)
+        capture_page.locator('[data-capture-tool="Eyedropper"]').click()
+        capture_page.mouse.click(canvas_box['x'] + canvas_box['width'] * .2, canvas_box['y'] + canvas_box['height'] * .2)
+        check(capture_page.locator('[data-capture-tool="Rect"]').get_attribute('aria-pressed') == 'true', '取色后返回矩形工具并保留取到的绘图颜色')
+        capture_drag('Highlight')
+        check(capture_page.evaluate('(()=>{const c=document.getElementById("captureCanvas"),p=c.getContext("2d").getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4===3&&v>0)})()'), '矩形、圆形、箭头、画笔、马赛克、高亮、文字和序号均绘制到截图')
+        capture_page.locator('#captureUndo').click()
+        capture_page.locator('#captureSaveLocal').click()
+        wait_for_condition(capture_page, 'messages.some(message=>message.action==="saveAs")')
+        capture_page.evaluate('completeCaptureAction({success:false,message:"写入失败"})')
+        capture_page.locator('#captureConfirm').click()
+        wait_for_condition(capture_page, 'messages.some(message=>message.action==="confirm")')
+        check(capture_page.locator('#captureConfirm').is_enabled(), '另存失败回调后可以继续确认并重试')
+        capture_page.wait_for_timeout(300)
+        confirmed = capture_page.evaluate('messages.find(message=>message.action==="confirm")')
+        check(confirmed is not None and confirmed['data'].startswith('data:image/png;base64,'), '截图模式确认导出 PNG 数据')
+        output_image = Image.open(io.BytesIO(base64.b64decode(confirmed['data'].split(',')[1]))).convert('RGB')
+        check(output_image.size == image.size, '确认导出的 PNG 保持原截图分辨率')
+        check(ImageChops.difference(output_image, image).getbbox() is not None, '确认导出的 PNG 像素包含标注结果')
+        highlight_point = (int(image.width * .45), int(image.height * .42))
+        original_pixel = image.convert('RGB').getpixel(highlight_point)
+        highlighted_pixel = output_image.getpixel(highlight_point)
+        check(highlighted_pixel != original_pixel and highlighted_pixel[0] >= original_pixel[0] and highlighted_pixel[2] <= original_pixel[2], '导出 PNG 在高亮区域保留黄色半透明像素')
         print('简洁编辑界面测试：%s 项通过' % checks)
         browser.close()
 finally:

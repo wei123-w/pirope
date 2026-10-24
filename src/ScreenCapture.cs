@@ -38,12 +38,14 @@ namespace ScreenLine
             return Copy(bounds);
         }
 
-        public static Bitmap Region()
+        public static Bitmap Region(bool annotate = true, System.Collections.Generic.IDictionary<string, string> hotkeys = null, string initialAiAction = null, System.Func<Bitmap, string, string, string, System.Threading.Tasks.Task<string>> aiAction = null)
         {
-            using (var overlay = new RegionOverlay())
+            Rectangle bounds = SystemInformation.VirtualScreen;
+            using (var desktop = Copy(bounds))
+            using (var overlay = new RegionOverlay(desktop, bounds, annotate, hotkeys, aiAction, initialAiAction))
             {
-                if (overlay.ShowDialog() != DialogResult.OK || overlay.Selection.Width < 2 || overlay.Selection.Height < 2) return null;
-                return Copy(overlay.Selection);
+                if (overlay.ShowDialog() != DialogResult.OK || overlay.Result == null) return null;
+                return (Bitmap)overlay.Result.Clone();
             }
         }
 
@@ -54,7 +56,7 @@ namespace ScreenLine
             {
                 while (true)
                 {
-                    Bitmap part = Region();
+                    Bitmap part = Region(false);
                     if (part == null) break;
                     parts.Add(part);
                     var answer = System.Windows.Forms.MessageBox.Show("已截取第 " + parts.Count + " 段。\n选择“是”继续截取，选择“否”完成拼接。", "连续截图拼接", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -77,59 +79,44 @@ namespace ScreenLine
             finally { foreach (Bitmap part in parts) part.Dispose(); }
         }
 
-        static Bitmap Copy(Rectangle bounds)
+        internal static Bitmap Copy(Rectangle bounds)
         {
             var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
             using (Graphics graphics = Graphics.FromImage(bitmap)) graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size, CopyPixelOperation.SourceCopy);
             return bitmap;
         }
 
-        sealed class RegionOverlay : Form
+        internal static Bitmap RenderRegionFrame(Bitmap desktop, Rectangle desktopBounds, Rectangle selection, Color shade, float opacity)
         {
-            DrawingPoint origin;
-            bool selecting;
-            public Rectangle Selection { get; private set; }
-
-            public RegionOverlay()
+            if (desktop == null) throw new ArgumentNullException("desktop");
+            if (desktop.Size != desktopBounds.Size) throw new ArgumentException("Desktop snapshot bounds must match its pixel size.", "desktopBounds");
+            if (float.IsNaN(opacity) || opacity < 0 || opacity > 1) throw new ArgumentOutOfRangeException("opacity");
+            var result = new Bitmap(desktop.Width, desktop.Height, PixelFormat.Format32bppArgb);
+            using (Graphics graphics = Graphics.FromImage(result))
             {
-                FormBorderStyle = FormBorderStyle.None; StartPosition = FormStartPosition.Manual;
-                Bounds = SystemInformation.VirtualScreen; TopMost = true; ShowInTaskbar = false;
-                KeyPreview = true; Cursor = Cursors.Cross; BackColor = Color.Black; Opacity = .38;
-                DoubleBuffered = true; AutoScaleMode = AutoScaleMode.None;
-                KeyDown += delegate(object sender, KeyEventArgs args) { if (args.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); } };
-                MouseDown += delegate(object sender, MouseEventArgs args)
+                graphics.DrawImageUnscaled(desktop, 0, 0);
+                Rectangle local = Rectangle.Intersect(new Rectangle(selection.X - desktopBounds.X, selection.Y - desktopBounds.Y, selection.Width, selection.Height), new Rectangle(0, 0, desktop.Width, desktop.Height));
+                using (var outside = new Region(new Rectangle(0, 0, desktop.Width, desktop.Height)))
                 {
-                    if (args.Button != MouseButtons.Left) return;
-                    origin = Cursor.Position; selecting = true; Selection = new Rectangle(origin, System.Drawing.Size.Empty); Invalidate();
-                };
-                MouseMove += delegate(object sender, MouseEventArgs args)
-                {
-                    if (!selecting) return;
-                    Selection = RectFromPoints(origin, Cursor.Position); Invalidate();
-                };
-                MouseUp += delegate(object sender, MouseEventArgs args)
-                {
-                    if (!selecting || args.Button != MouseButtons.Left) return;
-                    Selection = RectFromPoints(origin, Cursor.Position); selecting = false; DialogResult = DialogResult.OK; Close();
-                };
-                Paint += delegate(object sender, PaintEventArgs args)
-                {
-                    if (selecting || Selection.Width > 0)
-                    {
-                        Rectangle local = new Rectangle(Selection.Left - Bounds.Left, Selection.Top - Bounds.Top, Selection.Width, Selection.Height);
-                        using (var pen = new Pen(Color.DeepSkyBlue, 2)) args.Graphics.DrawRectangle(pen, local);
-                        string size = Selection.Width + " × " + Selection.Height;
-                        args.Graphics.DrawString(size, Font, Brushes.White, local.Left, Math.Max(0, local.Top - 22));
-                    }
-                    args.Graphics.DrawString("拖动选择截图区域　·　按 Esc 取消", Font, Brushes.White, 18, 16);
-                };
+                    if (local.Width > 0 && local.Height > 0) outside.Exclude(local);
+                    graphics.SetClip(outside, System.Drawing.Drawing2D.CombineMode.Replace);
+                    using (var brush = new SolidBrush(Color.FromArgb((int)Math.Round(opacity * 255), shade))) graphics.FillRectangle(brush, 0, 0, desktop.Width, desktop.Height);
+                    graphics.ResetClip();
+                }
             }
-
-            static Rectangle RectFromPoints(DrawingPoint a, DrawingPoint b)
-            {
-                return Rectangle.FromLTRB(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
-            }
+            return result;
         }
+
+        internal static Bitmap CropRegion(Bitmap desktop, Rectangle desktopBounds, Rectangle selection)
+        {
+            if (desktop == null) throw new ArgumentNullException("desktop");
+            if (desktop.Size != desktopBounds.Size) throw new ArgumentException("Desktop snapshot bounds must match its pixel size.", "desktopBounds");
+            Rectangle local = new Rectangle(selection.X - desktopBounds.X, selection.Y - desktopBounds.Y, selection.Width, selection.Height);
+            local = Rectangle.Intersect(local, new Rectangle(0, 0, desktop.Width, desktop.Height));
+            if (local.Width < 2 || local.Height < 2) throw new ArgumentOutOfRangeException("selection");
+            return desktop.Clone(local, PixelFormat.Format32bppArgb);
+        }
+
     }
 
     internal sealed class CaptureDialog : Window

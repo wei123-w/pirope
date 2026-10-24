@@ -96,6 +96,23 @@
     </div>
     <button id="save" class="primary" data-action="finish" disabled title="保存并关闭">完成</button>
   </div>
+  <div id="captureTools" class="capture-tools" role="toolbar" aria-label="截图标注工具" hidden>
+    <button data-capture-tool="Rect" aria-label="矩形" title="矩形"><span>□</span><kbd>1</kbd></button>
+    <button data-capture-tool="Ellipse" aria-label="圆形" title="圆形"><span>○</span><kbd>2</kbd></button>
+    <button data-capture-tool="Arrow" aria-label="箭头" title="箭头"><span>↗</span><kbd>3</kbd></button>
+    <button data-capture-tool="Pen" aria-label="画笔" title="画笔"><span>✎</span><kbd>4</kbd></button>
+    <button data-capture-tool="Mosaic" aria-label="马赛克" title="马赛克"><span>▦</span><kbd>5</kbd></button>
+    <button data-capture-tool="Text" aria-label="文字" title="文字"><span>T</span><kbd>6</kbd></button>
+    <button data-capture-tool="Highlight" aria-label="高亮" title="高亮"><span>▣</span><kbd>7</kbd></button>
+    <button data-capture-tool="Number" aria-label="序号" title="序号"><span>①</span><kbd>8</kbd></button>
+    <button data-capture-tool="Eyedropper" aria-label="取色" title="取色"><span>♢</span><kbd>9</kbd></button>
+  </div>
+  <div id="captureActions" class="capture-actions" hidden>
+    <button id="captureUndo" aria-label="撤销" title="撤销 Ctrl+Z">↶</button>
+    <button id="captureSaveLocal" aria-label="保存到本地" title="保存到本地">⇩</button>
+    <button id="captureCancel" aria-label="取消" title="取消">×</button>
+    <button id="captureConfirm" aria-label="确认并挂到图绳" title="确认并挂到图绳">✓</button>
+  </div>
 </header>
 <div id="toolNavigation" class="tool-navigation" role="group" aria-label="当前操作" hidden>
   <button id="toolBack" title="取消本次操作并返回"><svg aria-hidden="true"><use href="#i-back"/></svg>返回</button>
@@ -113,5 +130,6 @@
 <script src="filerobot-image-editor.min.js"></script>
 <script src="translations.js"></script>
 <script src="editor.js"></script>
+<script src="capture-annotation.js"></script>
 </body>
 </html>

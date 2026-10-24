@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -13,6 +17,7 @@ using Microsoft.Web.WebView2.Core;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Forms = System.Windows.Forms;
+using Drawing = System.Drawing;
 
 namespace ScreenLine.Tests
 {
@@ -41,6 +46,18 @@ namespace ScreenLine.Tests
             {
                 try { CheckCaptureTimes(); Console.WriteLine("截图时间测试：{0} 项通过", checks); }
                 catch (Exception error) { Console.WriteLine("截图时间测试失败：" + error.Message); Environment.ExitCode = 1; }
+                return;
+            }
+            if (arguments.Contains("--toolbar"))
+            {
+                try { CheckToolbarPlacement(); Console.WriteLine("宸ュ叿鏍忔祴璇曪細{0} 椤归€氳繃", checks); }
+                catch (Exception error) { Console.WriteLine("宸ュ叿鏍忔祴璇曞け璐ワ細" + error.Message); Environment.ExitCode = 1; }
+                return;
+            }
+            if (arguments.Contains("--ai"))
+            {
+                try { CheckAiSetup(); Console.WriteLine("AI 配置检查：{0} 项通过", checks); }
+                catch (Exception error) { Console.WriteLine("AI 配置检查失败：" + error); Environment.ExitCode = 1; }
                 return;
             }
             bool passiveInput = arguments.Contains("--scroll-bounds") || arguments.Contains("--basket-appearance") || arguments.Contains("--basket-motion");
@@ -72,6 +89,100 @@ namespace ScreenLine.Tests
                 application.Shutdown(Environment.ExitCode);
             };
             application.Run();
+        }
+
+        static void CheckAiSetup()
+        {
+            Check(new SavedState().TranslateShortcut == "Ctrl+Shift+F", "翻译快捷键默认值");
+            Check(new SavedState().ExplainShortcut == "Ctrl+Shift+J", "解释快捷键默认值");
+            Check(new SavedState().TextExtractShortcut == "Ctrl+Shift+O", "AI 文字提取快捷键默认值");
+            Check(AiService.ProviderPresets.ContainsKey("B.AI") && AiService.ProviderPresets["B.AI"] == "https://api.b.ai/v1", "B.AI 服务预设地址");
+            Check(AiService.ProviderPresets.ContainsKey("Agnes") && AiService.ProviderPresets["Agnes"] == "https://apihub.agnes-ai.com/v1", "Agnes 服务预设地址");
+            Check(AiService.ProviderPresets.ContainsKey("Google Gemini") && AiService.ProviderPresets["Google Gemini"] == "https://generativelanguage.googleapis.com/v1beta/openai", "Gemini OpenAI 兼容地址");
+            Check(AiService.ProviderPresets.ContainsKey("通义千问（国际站）") && AiService.ProviderPresets.ContainsKey("月之暗面（国际站）"), "支持海外区域接口预设");
+            Check(AiService.ProviderNames.Skip(1).All(name => AiService.ProviderPresets.ContainsKey(name)), "配置页列出的每个服务商都存在接口预设");
+            Check(AiService.ProviderPresets.ContainsKey("Together") && AiService.ProviderPresets["Together"] == "https://api.together.ai/v1", "Together 服务预设地址");
+            Check(AiService.BuildImagePart("https://api.mistral.ai/v1", "data:image/png;base64,AA==")["image_url"] as string == "data:image/png;base64,AA==", "Mistral 图片字段使用字符串格式");
+            Check(AiService.BuildImagePart("https://api.openai.com/v1", "data:image/png;base64,AA==")["image_url"] is Dictionary<string, object>, "常见兼容接口图片字段使用对象格式");
+            var settingsWindow = new SettingsWindow(new SavedState(), delegate { });
+            var shortcutControls = (Dictionary<string, TextBox>)typeof(SettingsWindow).GetField("shortcuts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(settingsWindow);
+            Check(shortcutControls.ContainsKey("TextExtractShortcut") && shortcutControls["TextExtractShortcut"].Text == "Ctrl+Shift+O", "设置页提供 AI 文字提取快捷键");
+            {
+                var provider = (ComboBox)typeof(SettingsWindow).GetField("aiProvider", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(settingsWindow);
+                var endpoint = (TextBox)typeof(SettingsWindow).GetField("aiEndpoint", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(settingsWindow);
+                provider.SelectedItem = "Groq";
+                Check(endpoint.Text == "https://api.groq.com/openai/v1", "选择服务商后自动填写接口地址");
+                endpoint.Text = "https://custom.example/v1";
+                Check((string)provider.SelectedItem == "自定义接口", "手动修改接口地址后切换到自定义接口");
+            }
+            settingsWindow.Close();
+            Check(AiService.ChatEndpoint("https://example.test/v1/") == "https://example.test/v1/chat/completions", "兼容接口地址自动补齐路径");
+            Check(AiService.ChatEndpoint("https://example.test/v1/chat/completions") == "https://example.test/v1/chat/completions", "完整接口地址不重复追加路径");
+            var state = new SavedState { AiEndpoint = "http://127.0.0.1:1234/v1", AiModel = "vision", AiApiKey = "local-key" };
+            state.TranslateShortcut = "Alt+F"; state.ExplainShortcut = "Alt+J";
+            var copy = SettingsWindow.Copy(state);
+            Check(copy.AiEndpoint == state.AiEndpoint && copy.AiModel == state.AiModel && copy.AiApiKey == "local-key", "设置草稿复制保留 AI 配置");
+            Check(copy.TranslateShortcut == "Alt+F" && copy.ExplainShortcut == "Alt+J", "设置草稿复制保留 AI 快捷键");
+            state.TextExtractShortcut = "Alt+O";
+            copy = SettingsWindow.Copy(state);
+            Check(copy.TextExtractShortcut == "Alt+O", "设置草稿复制保留 AI 文字提取快捷键");
+            var responseHandler = new AiTestHandler();
+            var configured = new SavedState { AiEndpoint = "https://example.test/v1", AiModel = "vision-model", AiApiKey = "test-key" };
+            string result = AiService.TestConnectionAsync(configured, responseHandler).GetAwaiter().GetResult();
+            Check(resultHandlerResult(result), "测试连接解析模型响应");
+            Check(responseHandler.RequestUri == "https://example.test/v1/chat/completions", "测试连接请求兼容接口路径");
+            Check(responseHandler.Authorization == "Bearer test-key", "测试连接发送当前密钥");
+            Check(responseHandler.Body.Contains("只回复 OK") && !responseHandler.Body.Contains("image_url"), "测试连接只发送短文本，不上传截图");
+            string autoPrompt = AiService.TranslationPrompt("自动检测语言", "中文简体");
+            Check(autoPrompt.Contains("自动识别") && autoPrompt.Contains("中文简体"), "翻译提示支持自动检测来源并使用简体中文目标");
+            string manualPrompt = AiService.TranslationPrompt("英语", "日语");
+            Check(manualPrompt.Contains("英语") && manualPrompt.Contains("日语"), "翻译提示采用手动源语言和目标语言");
+            using (var window = new AiTranslationWindow((sourceLanguage, targetLanguage) => Task.FromResult("测试译文")))
+            {
+                Check(window.SelectedSourceLanguage == "自动检测语言" && window.SelectedTargetLanguage == "中文简体", "翻译窗口默认自动检测并翻译为简体中文");
+                var root = (Forms.TableLayoutPanel)window.Controls[0];
+                Check(root.RowStyles[0].SizeType == Forms.SizeType.AutoSize, "结果窗口标题区按内容自适应，避免高 DPI 裁切");
+                var sourcePicker = (Forms.ComboBox)typeof(AiTranslationWindow).GetField("source", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(window);
+                Check(sourcePicker.DrawMode == Forms.DrawMode.OwnerDrawFixed, "翻译语言菜单使用统一的自绘样式");
+            }
+            string extractionPrompt = AiService.TextExtractionPrompt();
+            Check(extractionPrompt.Contains("只返回") && extractionPrompt.Contains("保留") && extractionPrompt.Contains("不要翻译"), "AI 文字提取提示词只提取并保留文字结构");
+            using (var window = new AiTextExtractionWindow(() => Task.FromResult("测试提取文本")))
+                Check(window.Text == "文字提取" && window.FormBorderStyle == Forms.FormBorderStyle.None, "AI 文字提取使用统一结果窗口");            var explanationWindow = new AiExplanationWindow(() => Task.FromResult("测试解释"));
+            Check(explanationWindow.Text == "截图解释" && explanationWindow.FormBorderStyle == Forms.FormBorderStyle.None, "AI 解释使用统一的自定义结果窗口");
+            explanationWindow.Close();
+            using (var largeImage = new Drawing.Bitmap(3840, 2160))
+            {
+                string payload = AiService.PrepareImageDataUrl(largeImage);
+                byte[] encoded = Convert.FromBase64String(payload.Substring(payload.IndexOf(',') + 1));
+                using (var stream = new System.IO.MemoryStream(encoded))
+                using (var optimized = Drawing.Image.FromStream(stream))
+                    Check(Math.Max(optimized.Width, optimized.Height) <= 2048, "高分辨率截图发送前缩放到快速识别尺寸");
+            }
+            using (var smallImage = new Drawing.Bitmap(640, 360))
+            {
+                string payload = AiService.PrepareImageDataUrl(smallImage);
+                byte[] encoded = Convert.FromBase64String(payload.Substring(payload.IndexOf(',') + 1));
+                using (var stream = new System.IO.MemoryStream(encoded))
+                using (var optimized = Drawing.Image.FromStream(stream))
+                    Check(optimized.Size == new Drawing.Size(640, 360), "普通截图保留原始分辨率以维持文字清晰度");
+            }
+        }
+
+        static bool resultHandlerResult(string result) { return result == "OK"; }
+
+        sealed class AiTestHandler : HttpMessageHandler
+        {
+            public string RequestUri;
+            public string Authorization;
+            public string Body;
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                RequestUri = request.RequestUri.ToString();
+                Authorization = request.Headers.Authorization == null ? null : request.Headers.Authorization.ToString();
+                Body = await request.Content.ReadAsStringAsync();
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"OK\"}}]}") };
+            }
         }
 
         static async Task Run(bool visibilityOnly, bool menusOnly, bool editorOnly, bool discardOnly, bool shelfMotionOnly, bool pinsOnly, bool themesOnly, bool copiedOnly, bool windOnly, bool basketOnly, bool scrollOnly, bool basketAppearanceOnly, bool basketMotionOnly)
@@ -125,7 +236,7 @@ namespace ScreenLine.Tests
             }
             if (visibilityOnly) { await CheckVisibility(); return; }
             if (menusOnly) { await CheckMenus(store); return; }
-            if (editorOnly) { await CheckEditor(store); return; }
+            if (editorOnly) { CheckAnnotationShortcutCopy(); CheckAnnotationShortcutSettings(); CheckRegionRendering(); await CheckEditor(store); await CheckCaptureEditor(store); return; }
             if (discardOnly) { await CheckDiscard(store); return; }
             if (shelfMotionOnly) { await CheckScrollBoundaries(store); await CheckScrollAndWind(store); return; }
             if (pinsOnly) { await CheckPins(store); return; }
@@ -1420,6 +1531,162 @@ namespace ScreenLine.Tests
             string output = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview.png");
             using (var file = File.Create(output)) encoder.Save(file);
             Console.WriteLine("界面预览：" + output);
+        }
+
+        static void CheckAnnotationShortcutCopy()
+        {
+            var state = new SavedState();
+            state.AnnotationHotkeys["Mosaic"] = "M";
+            var copy = SettingsWindow.Copy(state);
+            Check(copy.AnnotationHotkeys["Mosaic"] == "M", "设置草稿复制保留标注快捷键");
+        }
+
+        static void CheckRegionRendering()
+        {
+            var desktop = new System.Drawing.Bitmap(8, 6);
+            for (int y = 0; y < desktop.Height; y++)
+                for (int x = 0; x < desktop.Width; x++) desktop.SetPixel(x, y, System.Drawing.Color.FromArgb(220, 180, 140));
+            var desktopBounds = new System.Drawing.Rectangle(-5, 10, desktop.Width, desktop.Height);
+            var selection = new System.Drawing.Rectangle(-3, 11, 2, 2);
+            using (var frame = ScreenCapture.RenderRegionFrame(desktop, desktopBounds, selection, System.Drawing.Color.Black, .5f))
+            {
+                Check(frame.Size == desktop.Size, "选区遮罩画面保持桌面截图尺寸");
+                Check(frame.GetPixel(2, 1).ToArgb() == desktop.GetPixel(2, 1).ToArgb(), "选区内部像素与原屏幕完全一致");
+                Check(frame.GetPixel(0, 0).R < desktop.GetPixel(0, 0).R, "选区外区域按半透明遮罩压暗");
+            }
+            using (var crop = ScreenCapture.CropRegion(desktop, desktopBounds, selection))
+            {
+                Check(crop.Size == new System.Drawing.Size(2, 2), "裁切结果使用选区像素尺寸");
+                Check(crop.GetPixel(0, 0).ToArgb() == desktop.GetPixel(2, 1).ToArgb(), "虚拟桌面坐标正确映射为快照本地坐标");
+            }
+            bool rejected = false;
+            try { using (ScreenCapture.CropRegion(desktop, desktopBounds, System.Drawing.Rectangle.Empty)) { } }
+            catch (ArgumentOutOfRangeException) { rejected = true; }
+            Check(rejected, "空选区不能生成无效截图");
+            desktop.Dispose();
+        }
+
+        static void CheckAnnotationShortcutSettings()
+        {
+            SavedState saved = null;
+            var settings = new SettingsWindow(new SavedState(), draft => saved = draft);
+            settings.Show();
+            var field = typeof(SettingsWindow).GetField("annotationShortcuts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var inputs = (System.Collections.Generic.Dictionary<string, System.Windows.Controls.TextBox>)field.GetValue(settings);
+            Check(inputs.Count == 9, "快捷键设置页提供九种标注工具录入框");
+            var reset = typeof(SettingsWindow).GetMethod("Reset", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            reset.Invoke(settings, new object[] { null, null });
+            Check(inputs["Rect"].Text == "1" && inputs["Eyedropper"].Text == "9", "恢复默认时还原标注快捷键 1 至 9");
+            var capture = typeof(SettingsWindow).GetMethod("CaptureAnnotationKey", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var normalizeKey = typeof(SettingsWindow).GetMethod("NormalizeAnnotationKey", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Check((string)normalizeKey.Invoke(null, new object[] { System.Windows.Input.Key.OemMinus }) == "Minus", "标注快捷键将标点键映射为浏览器物理键名");
+            Check((string)normalizeKey.Invoke(null, new object[] { System.Windows.Input.Key.D1 }) == "1", "标注快捷键保留带 Shift 的数字键物理含义");
+            Check((string)normalizeKey.Invoke(null, new object[] { System.Windows.Input.Key.NumPad1 }) == "Numpad1", "标注快捷键区分数字小键盘按键");
+            var key = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(settings), Environment.TickCount, System.Windows.Input.Key.Q) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+            capture.Invoke(settings, new object[] { inputs["Rect"], key });
+            Check(inputs["Rect"].Text == "Q", "标注快捷键输入框聚焦后可直接录入单键");
+            inputs["Ellipse"].Text = "Q";
+            typeof(SettingsWindow).GetMethod("Save", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(settings, new object[] { null, new RoutedEventArgs() });
+            Check(saved == null, "重复标注快捷键会阻止保存");
+            inputs["Ellipse"].Text = "2";
+            typeof(SettingsWindow).GetMethod("Save", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(settings, new object[] { null, new RoutedEventArgs() });
+            Check(saved != null && saved.AnnotationHotkeys["Rect"] == "Q", "保存设置保留录入的标注快捷键");
+        }
+
+        static async Task CheckCaptureEditor(StateStore store)
+        {
+            CheckToolbarPlacement();
+            CheckSelectionManipulation();
+            store.State.ScreenshotFolder = Path.Combine(store.Root, "annotation-captures");
+            store.State.ScreenshotFormat = "JPG";
+            using (var source = new Drawing.Bitmap(100, 80))
+            using (var overlay = new RegionOverlay(source, new Drawing.Rectangle(-2, 5, 100, 80), true, null))
+            {
+                overlay.SetSelection(new Drawing.Rectangle(0, 6, 50, 40));
+                Check(overlay.SelectionLocked && overlay.Selection == new Drawing.Rectangle(0, 6, 50, 40), "框选确认后锁定原屏像素选区");
+                overlay.SetColor(Drawing.Color.Lime);
+                overlay.SetTool("Rect");
+                var down = typeof(RegionOverlay).GetMethod("PointerDown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var up = typeof(RegionOverlay).GetMethod("PointerUp", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                down.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 27, 21, 0) });
+                up.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 50, 39, 0) });
+                using (Drawing.Bitmap result = overlay.BuildResult())
+                {
+                    Check(result.Size == new Drawing.Size(50, 40), "标注结果保持框选区域的原始像素尺寸");
+                    Check(result.GetPixel(26, 20).G > result.GetPixel(26, 20).R, "标注颜色应用于新绘制的矩形");
+                }
+                overlay.CancelSelection();
+                Check(overlay.Result == null, "取消标注时直接丢弃内存结果");
+            }
+            var process = typeof(DesktopController).GetMethod("ProcessRegionCapture", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Check(process != null, "确认结果接入直接挂绳的截图处理流程");
+            int before = controller.Gallery.Items.Count;
+            using (var confirmed = new Drawing.Bitmap(8, 4))
+                await (Task)process.Invoke(controller, new object[] { confirmed });
+            await Until(() => controller.Gallery.Items.Count == before + 1);
+            var saved = controller.Gallery.Store.State.RecentCaptures.FirstOrDefault(item => item.Mode == "框选截图" && File.Exists(item.Path));
+            Check(saved != null && Path.GetExtension(saved.Path) == ".png", "确认后强制保存 PNG 并记录框选截图历史");
+            Check(controller.Gallery.Items.Any(item => FileRules.SameFile(item.Path, saved.Path)), "确认后的框选截图直接挂到图绳");
+        }
+
+        static void CheckToolbarPlacement()
+        {
+            using (var source = new Drawing.Bitmap(1000, 700))
+            using (var overlay = new RegionOverlay(source, new Drawing.Rectangle(0, 0, 1000, 700), true, null))
+            {
+                var toolbarField = typeof(RegionOverlay).GetField("toolbar", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var toolbar = (Forms.ToolStrip)toolbarField.GetValue(overlay);
+                var colorToolbarField = typeof(RegionOverlay).GetField("colorToolbar", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Forms.ToolStrip colorToolbar = colorToolbarField == null ? null : (Forms.ToolStrip)colorToolbarField.GetValue(overlay);
+                var paletteShownField = typeof(RegionOverlay).GetField("colorPaletteShown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Check(toolbar.Cursor == Forms.Cursors.Default, "标注工具栏使用普通指针");
+                overlay.SetSelection(new Drawing.Rectangle(100, 100, 200, 120));
+                Check(colorToolbar != null && paletteShownField != null && !(bool)paletteShownField.GetValue(overlay), "移动选区时隐藏颜色选择栏");
+                Check(toolbar.Items.OfType<Forms.ToolStripButton>().Any(button => button.Tag as string == "ExtractText"), "截图标注工具栏提供 AI 文字提取动作");
+                var rectangleTool = toolbar.Items.OfType<Forms.ToolStripButton>().Single(button => button.Tag as string == "Rect");
+                var penTool = toolbar.Items.OfType<Forms.ToolStripButton>().Single(button => button.Tag as string == "Pen");
+                rectangleTool.PerformClick();
+                Check((bool)paletteShownField.GetValue(overlay) && colorToolbar.Bottom > toolbar.Bottom, "选择标注工具后颜色栏显示在主栏下方");
+                rectangleTool.PerformClick();
+                Check(!(bool)paletteShownField.GetValue(overlay), "再次点击当前标注工具隐藏颜色栏");
+                rectangleTool.PerformClick();
+                Check((bool)paletteShownField.GetValue(overlay), "再次点击当前标注工具重新显示颜色栏");
+                penTool.PerformClick();
+                Check((bool)paletteShownField.GetValue(overlay) && overlay.ActiveTool == "Pen", "切换其他标注工具后保持颜色栏显示");
+                toolbar.Items.OfType<Forms.ToolStripButton>().Single(button => button.Tag as string == "Move").PerformClick();
+                Check(!(bool)paletteShownField.GetValue(overlay), "切回移动选区时再次隐藏颜色栏");
+                Check(toolbar.Dock == Forms.DockStyle.None && toolbar.Top >= 220, "标注工具栏悬浮在框选区域下方，不停靠在屏幕顶部");
+                Check(toolbar.Items.OfType<Forms.ToolStripButton>().Any(button => button.Tag as string == "Move" && button.Width >= 40), "工具栏提供放大的选区移动工具");
+                overlay.SetSelection(new Drawing.Rectangle(100, 630, 200, 60));
+                overlay.SetTool("Pen");
+                Check((bool)paletteShownField.GetValue(overlay) && colorToolbar.Bottom <= toolbar.Top, "工具栏在选区上方时颜色栏位于主栏上方");
+                Check(toolbar.Bottom <= 630, "框选靠近屏幕底部时标注工具栏切换到选区上方");
+            }
+        }
+
+        static void CheckSelectionManipulation()
+        {
+            using (var source = new Drawing.Bitmap(1000, 700))
+            using (var overlay = new RegionOverlay(source, new Drawing.Rectangle(0, 0, 1000, 700), true, null))
+            {
+                overlay.SetSelection(new Drawing.Rectangle(200, 200, 200, 100));
+                overlay.SetTool("Move");
+                var down = typeof(RegionOverlay).GetMethod("PointerDown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var move = typeof(RegionOverlay).GetMethod("PointerMove", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var up = typeof(RegionOverlay).GetMethod("PointerUp", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                move.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.None, 0, 300, 250, 0) });
+                Check(overlay.Cursor == Forms.Cursors.SizeAll, "鼠标移入选区后显示可移动指针");
+                down.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 300, 250, 0) });
+                move.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 340, 280, 0) });
+                up.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 340, 280, 0) });
+                Check(overlay.Selection == new Drawing.Rectangle(240, 230, 200, 100), "拖动选区内部可整体移动框选范围");
+                down.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 440, 330, 0) });
+                move.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 480, 360, 0) });
+                up.Invoke(overlay, new object[] { overlay, new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 480, 360, 0) });
+                Check(overlay.Selection == new Drawing.Rectangle(240, 230, 240, 130), "拖动选区角点可调整宽度和高度");
+                overlay.SetTool("Rect");
+                Check(overlay.ActiveTool == "Rect", "切回标注工具后选区内部恢复绘图操作");
+            }
         }
 
         static async Task CheckEditor(StateStore store)

@@ -14,7 +14,7 @@ $references = @(
     "/r:$frameworkPath\Microsoft.VisualBasic.dll",
     "/r:$projectRoot\vendor\WebView2\Microsoft.Web.WebView2.Core.dll",
     "/r:$projectRoot\vendor\WebView2\Microsoft.Web.WebView2.Wpf.dll",
-    '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll'
+    '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll', '/r:System.Security.dll'
     '/r:System.Net.Http.dll', '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll'
 )
 $sources = (Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs').FullName

@@ -206,15 +206,16 @@ namespace ScreenLine.Tests
             {
                 string profile = Path.Combine(root, "extended-settings");
                 var store = new StateStore(profile);
-                Check(store.State.ToggleShortcut == "Ctrl+Alt+T" && store.State.RegionShortcut.Length > 0 && store.State.RevealOnStartup);
+                Check(store.State.ToggleShortcut == "Ctrl+Alt+T" && store.State.RegionShortcut.Length > 0 && store.State.RevealOnStartup && store.State.TextExtractShortcut == "Ctrl+Shift+O");
                 store.State.RegionShortcut = "Ctrl+Shift+A";
+                store.State.TextExtractShortcut = "Alt+O";
                 store.State.ScreenshotFolder = Path.Combine(root, "新截图目录");
                 store.State.DelaySeconds = 5;
                 store.State.RecentCaptures.Add(new CaptureHistoryItem { Path = "截图.png", Mode = "框选截图", CreatedUtc = DateTime.UtcNow });
                 store.State.WorkflowPresets.Add(new CaptureWorkflowPreset { Name = "框选后复制", Mode = "Region", Action = "Copy", DelaySeconds = 3 });
                 store.Save();
                 var restored = new StateStore(profile);
-                Check(restored.State.RegionShortcut == "Ctrl+Shift+A" && restored.State.DelaySeconds == 5
+                Check(restored.State.RegionShortcut == "Ctrl+Shift+A" && restored.State.TextExtractShortcut == "Alt+O" && restored.State.DelaySeconds == 5
                     && restored.State.ScreenshotFolder == Path.Combine(root, "新截图目录"));
                 Check(restored.State.RecentCaptures.Single().Mode == "框选截图");
                 Check(restored.State.WorkflowPresets.Single().Name == "框选后复制" && restored.State.WorkflowPresets[0].Action == "Copy");
@@ -281,7 +282,70 @@ namespace ScreenLine.Tests
                 var restored = new StateStore(profile);
                 Check(restored.State.Texts.Single().Content == content && restored.State.Images.Single() == "保留截图.png");
             });
+            Run("旧版设置会补齐 AI 文字提取快捷键", delegate
+            {
+                string profile = Path.Combine(root, "legacy-text-extract-hotkey");
+                Directory.CreateDirectory(profile);
+                File.WriteAllText(Path.Combine(profile, "state.json"), @"{""ExplainShortcut"":""Ctrl+Shift+J""}");
+                var restored = new StateStore(profile);
+                Check(restored.State.TextExtractShortcut == "Ctrl+Shift+O");
+            });            Run("AI settings defaults and encrypted key persistence", delegate
+            {
+                var store = new StateStore(Path.Combine(root, "ai-settings"));
+                Check(store.State.TranslateShortcut == "Ctrl+Shift+F" && store.State.ExplainShortcut == "Ctrl+Shift+J");
+                store.State.AiEndpoint = "https://example.test/v1";
+                store.State.AiModel = "vision-model";
+                store.State.AiApiKey = "secret-test-key";
+                store.Save();
+                string json = File.ReadAllText(Path.Combine(store.Root, "state.json"));
+                Check(!json.Contains("secret-test-key") && json.Contains("AiApiKeyProtected"));
+                var restored = new StateStore(store.Root);
+                Check(restored.State.AiEndpoint == store.State.AiEndpoint && restored.State.AiModel == "vision-model");
+                Check(restored.State.AiApiKey == "secret-test-key");
+            });
             Console.WriteLine("核心测试：{0} 通过，{1} 失败", passed, failed);
+            Run("标注快捷键默认为 1 到 9", delegate
+            {
+                var property = typeof(SavedState).GetProperty("AnnotationHotkeys");
+                Check(property != null);
+                var hotkeys = property.GetValue(new SavedState(), null) as System.Collections.IDictionary;
+                Check(hotkeys.Count == 9);
+                Check(Convert.ToString(hotkeys["Rect"]) == "1" && Convert.ToString(hotkeys["Ellipse"]) == "2" && Convert.ToString(hotkeys["Arrow"]) == "3");
+                Check(Convert.ToString(hotkeys["Pen"]) == "4" && Convert.ToString(hotkeys["Mosaic"]) == "5" && Convert.ToString(hotkeys["Text"]) == "6");
+                Check(Convert.ToString(hotkeys["Highlight"]) == "7" && Convert.ToString(hotkeys["Number"]) == "8" && Convert.ToString(hotkeys["Eyedropper"]) == "9");
+            });
+            Run("旧版配置补齐标注快捷键", delegate
+            {
+                string profile = Path.Combine(root, "legacy-annotation-hotkeys");
+                Directory.CreateDirectory(profile);
+                File.WriteAllText(Path.Combine(profile, "state.json"), "{\"ToggleShortcut\":\"Ctrl+Alt+T\"}");
+                var restored = new StateStore(profile);
+                var property = typeof(SavedState).GetProperty("AnnotationHotkeys");
+                Check(property != null);
+                var hotkeys = property.GetValue(restored.State, null) as System.Collections.IDictionary;
+                Check(hotkeys.Count == 9 && Convert.ToString(hotkeys["Mosaic"]) == "5");
+            });
+            Run("部分标注快捷键保留自定义值并补齐其余项", delegate
+            {
+                string profile = Path.Combine(root, "partial-annotation-hotkeys");
+                Directory.CreateDirectory(profile);
+                File.WriteAllText(Path.Combine(profile, "state.json"), "{\"AnnotationHotkeys\":{\"Rect\":\"Q\",\"Pen\":\"P\"}}");
+                var restored = new StateStore(profile);
+                var property = typeof(SavedState).GetProperty("AnnotationHotkeys");
+                Check(property != null);
+                var hotkeys = property.GetValue(restored.State, null) as System.Collections.IDictionary;
+                Check(hotkeys.Count == 9 && Convert.ToString(hotkeys["Rect"]) == "Q");
+                Check(Convert.ToString(hotkeys["Pen"]) == "P" && Convert.ToString(hotkeys["Mosaic"]) == "5");
+            });
+            Run("标注快捷键保存后可恢复", delegate
+            {
+                var store = new StateStore(Path.Combine(root, "saved-annotation-hotkeys"));
+                store.State.AnnotationHotkeys["Mosaic"] = "Ctrl+M";
+                store.Save();
+                var restored = new StateStore(store.Root);
+                Check(restored.State.AnnotationHotkeys["Mosaic"] == "Ctrl+M" && restored.State.AnnotationHotkeys["Eyedropper"] == "9");
+            });
+            Console.WriteLine("附加测试累计：{0} 通过，{1} 失败", passed, failed);
             Environment.ExitCode = failed == 0 ? 0 : 1;
         }
 

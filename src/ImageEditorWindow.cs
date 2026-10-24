@@ -21,6 +21,8 @@ namespace ScreenLine
         readonly StateStore store;
         readonly Func<string, Task> saved;
         readonly Action copied;
+        readonly bool captureMode;
+        byte[] captureSource;
         readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = 96 * 1024 * 1024 };
         readonly TextBlock failureTitle = new TextBlock { Text = "正在打开图片…", Foreground = LightTheme.Brush("#283343"), FontSize = 16, FontWeight = FontWeights.SemiBold };
         readonly TextBlock failure = new TextBlock { Foreground = LightTheme.Brush("#65717F"), FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), LineHeight = 21 };
@@ -33,6 +35,7 @@ namespace ScreenLine
         internal Task Ready { get { return initialized.Task; } }
         internal Rect ReturnBounds = Rect.Empty;
         internal BitmapSource ReturnPicture;
+        internal byte[] CaptureOutput { get; private set; }
         public string ImagePath { get; private set; }
 
         public ImageEditorWindow(string path, StateStore store, Func<string, Task> saved, Action copied)
@@ -71,8 +74,20 @@ namespace ScreenLine
                 closed = true;
                 initialized.TrySetCanceled();
                 if (saveForClose != null) saveForClose.TrySetResult(false);
+                captureSource = null;
                 Browser.Dispose();
             };
+        }
+
+        public ImageEditorWindow(BitmapSource capture, StateStore store)
+            : this("截图标注.png", store, delegate { return Task.FromResult(0); }, delegate { })
+        {
+            if (capture == null) throw new ArgumentNullException("capture");
+            captureMode = true;
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(capture));
+            using (var stream = new MemoryStream()) { encoder.Save(stream); captureSource = stream.ToArray(); }
+            CaptureOutput = null;
+            Title = "截图标注";
         }
 
         public void Present()
@@ -89,7 +104,7 @@ namespace ScreenLine
         {
             try
             {
-                byte[] png = await Task.Run(() => ImageEditFiles.ReadPng(ImagePath));
+                byte[] png = captureMode ? captureSource : await Task.Run(() => ImageEditFiles.ReadPng(ImagePath));
                 if (closed) return;
                 var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(store.Root, "EditorCache"));
                 if (closed) return;
@@ -114,7 +129,9 @@ namespace ScreenLine
                 {
                     if (closed) return;
                     if (!e.IsSuccess) { ShowFailure(new IOException("图片编辑器页面加载失败。")); return; }
-                    await Browser.ExecuteScriptAsync("window.startEditor(" + json.Serialize(new { name = Path.GetFileName(ImagePath), source = "data:image/png;base64," + Convert.ToBase64String(png) }) + ");");
+                    var options = new Dictionary<string, object> { { "name", Path.GetFileName(ImagePath) }, { "source", "data:image/png;base64," + Convert.ToBase64String(png) } };
+                    if (captureMode) { options["mode"] = "capture"; options["hotkeys"] = store.State.AnnotationHotkeys; }
+                    await Browser.ExecuteScriptAsync("window.startEditor(" + json.Serialize(options) + ");");
                 };
                 failurePanel.Visibility = Visibility.Collapsed;
                 core.Navigate(Origin + "index.html");
@@ -146,12 +163,37 @@ namespace ScreenLine
                 action = request["action"] as string;
                 if (action == "ready") { initialized.TrySetResult(true); return; }
                 if (action == "dirty") { dirty = (bool)request["value"]; return; }
+                if (captureMode && action == "cancel") { CaptureOutput = null; CloseWithoutPrompt(); return; }
+                if (captureMode && action == "confirm")
+                {
+                    CaptureOutput = await Task.Run(() => ImageEditFiles.Decode(request["data"] as string));
+                    if (!closed) CloseWithoutPrompt();
+                    return;
+                }
+                if (captureMode && action == "error")
+                {
+                    store.Log(new InvalidOperationException(request["detail"] as string ?? request["message"] as string));
+                    await Browser.ExecuteScriptAsync("window.completeCaptureAction(" + json.Serialize(new { success = false, message = request["message"] as string ?? "导出截图失败，请重试。" }) + ");");
+                    return;
+                }
                 if (action == "error") { ShowFailure(new InvalidOperationException(request["detail"] as string)); return; }
                 if (busy || (action != "save" && action != "saveAs" && action != "copy")) return;
                 closeAfterSave = action == "save" && request.ContainsKey("closeAfterSave") && (bool)request["closeAfterSave"];
                 busy = true;
                 byte[] png = await Task.Run(() => ImageEditFiles.Decode(request["data"] as string));
                 if (closed) return;
+                if (captureMode && action == "saveAs")
+                {
+                    string folder = store.State.ScreenshotFolder;
+                    if (string.IsNullOrWhiteSpace(folder)) folder = WindowsNative.ScreenshotFolder();
+                    var picker = new SaveFileDialog { Title = "保存标注截图", InitialDirectory = Directory.Exists(folder) ? folder : Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), FileName = "图绳截图_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png", Filter = "PNG 图片|*.png", DefaultExt = ".png", AddExtension = true, OverwritePrompt = true };
+                    string destination = picker.ShowDialog(this) == true ? picker.FileName : null;
+                    if (destination != null) { await Task.Run(() => ImageEditFiles.Save(destination, png)); success = didSave = true; message = "已保存到本地"; }
+                    else { success = true; message = "已取消保存"; }
+                    busy = false;
+                    await Browser.ExecuteScriptAsync("window.completeCaptureAction(" + json.Serialize(new { success, saved = didSave, message }) + ");");
+                    return;
+                }
                 if (action == "copy")
                 {
                     var payload = new DataObject();
@@ -191,7 +233,10 @@ namespace ScreenLine
             }
             busy = false;
             if (closed) return;
-            await Browser.ExecuteScriptAsync("window.completeAction(" + json.Serialize(new { success, saved = didSave, message, name = Path.GetFileName(ImagePath) }) + ");");
+            if (captureMode)
+                await Browser.ExecuteScriptAsync("window.completeCaptureAction(" + json.Serialize(new { success, saved = didSave, message }) + ");");
+            else
+                await Browser.ExecuteScriptAsync("window.completeAction(" + json.Serialize(new { success, saved = didSave, message, name = Path.GetFileName(ImagePath) }) + ");");
             if (saveForClose != null && action == "save") saveForClose.TrySetResult(success);
             if (success && closeAfterSave) Close();
         }
@@ -215,6 +260,11 @@ namespace ScreenLine
         async void ClosingEditor(object sender, CancelEventArgs args)
         {
             if (forceClose) return;
+            if (captureMode)
+            {
+                CaptureOutput = null;
+                return;
+            }
             args.Cancel = true;
             if (closingCheck) return;
             closingCheck = true;

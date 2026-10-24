@@ -291,6 +291,9 @@ namespace ScreenLine
             var previous = SettingsWindow.Copy(state);
             state.ToggleShortcut = draft.ToggleShortcut; state.RegionShortcut = draft.RegionShortcut; state.FullScreenShortcut = draft.FullScreenShortcut;
             state.WindowShortcut = draft.WindowShortcut; state.DelayShortcut = draft.DelayShortcut;
+            state.TranslateShortcut = draft.TranslateShortcut; state.ExplainShortcut = draft.ExplainShortcut; state.TextExtractShortcut = draft.TextExtractShortcut;
+            state.AiEndpoint = draft.AiEndpoint; state.AiModel = draft.AiModel; state.AiApiKey = draft.AiApiKey;
+            state.AnnotationHotkeys = draft.AnnotationHotkeys;
             state.ScreenshotFolder = draft.ScreenshotFolder; state.ScreenshotFormat = draft.ScreenshotFormat;
             state.DelaySeconds = draft.DelaySeconds; state.ScreenshotAction = draft.ScreenshotAction; state.RevealOnStartup = draft.RevealOnStartup;
             state.LaunchOnStartup = draft.LaunchOnStartup;
@@ -308,6 +311,9 @@ namespace ScreenLine
             {
                 state.ToggleShortcut = previous.ToggleShortcut; state.RegionShortcut = previous.RegionShortcut; state.FullScreenShortcut = previous.FullScreenShortcut;
                 state.WindowShortcut = previous.WindowShortcut; state.DelayShortcut = previous.DelayShortcut;
+                state.TranslateShortcut = previous.TranslateShortcut; state.ExplainShortcut = previous.ExplainShortcut; state.TextExtractShortcut = previous.TextExtractShortcut;
+                state.AiEndpoint = previous.AiEndpoint; state.AiModel = previous.AiModel; state.AiApiKey = previous.AiApiKey; state.AiApiKeyProtected = previous.AiApiKeyProtected;
+                state.AnnotationHotkeys = previous.AnnotationHotkeys;
                 state.ScreenshotFolder = previous.ScreenshotFolder; state.ScreenshotFormat = previous.ScreenshotFormat;
                 state.DelaySeconds = previous.DelaySeconds; state.ScreenshotAction = previous.ScreenshotAction;
                 state.RevealOnStartup = previous.RevealOnStartup; state.LaunchOnStartup = previous.LaunchOnStartup;
@@ -335,6 +341,9 @@ namespace ScreenLine
             else if (id == 3) CaptureScreenshot(1);
             else if (id == 4) CaptureScreenshot(2, WindowsNative.GetForegroundWindow());
             else if (id == 5) CaptureScreenshot(3);
+            else if (id == 6) CaptureScreenshot(0, IntPtr.Zero, "Translate");
+            else if (id == 7) CaptureScreenshot(0, IntPtr.Zero, "Explain");
+            else if (id == 8) CaptureScreenshot(0, IntPtr.Zero, "ExtractText");
         }
 
         async void CaptureScreenshot(int mode, IntPtr targetWindow = default(IntPtr), string actionOverride = null, int? delayOverride = null)
@@ -349,9 +358,14 @@ namespace ScreenLine
                 }
                 bool allDisplays = false;
                 if (mode == 1 && !CaptureDialog.ChooseFullScreenTarget(Shelf, out allDisplays)) return;
-                using (var bitmap = mode == 0 ? ScreenCapture.Region() : mode == 4 ? ScreenCapture.Continuous() : mode == 2 ? ScreenCapture.ActiveWindow(targetWindow == IntPtr.Zero ? WindowsNative.GetForegroundWindow() : targetWindow) : ScreenCapture.FullScreen(allDisplays))
+                using (var bitmap = mode == 0 ? ScreenCapture.Region(true, Gallery.Store.State.AnnotationHotkeys, actionOverride, (image, action, sourceLanguage, targetLanguage) => AiService.AskAsync(Gallery.Store.State, image, action, sourceLanguage, targetLanguage)) : mode == 4 ? ScreenCapture.Continuous() : mode == 2 ? ScreenCapture.ActiveWindow(targetWindow == IntPtr.Zero ? WindowsNative.GetForegroundWindow() : targetWindow) : ScreenCapture.FullScreen(allDisplays))
                 {
                     if (bitmap == null) return;
+                    if (mode == 0)
+                    {
+                        await ProcessRegionCapture(bitmap);
+                        return;
+                    }
                     string modeName = mode == 0 ? "框选截图" : mode == 4 ? "连续截图拼接" : mode == 2 ? "活动窗口截图" : allDisplays ? "全部屏幕截图" : "全屏截图";
                     await ProcessCapturedFile(SaveCapture(bitmap), modeName, actionOverride);
                 }
@@ -359,12 +373,12 @@ namespace ScreenLine
             catch (Exception error) { Gallery.Store.Log(error); Notice("截图失败：" + error.Message); }
         }
 
-        string SaveCapture(System.Drawing.Bitmap bitmap)
+        string SaveCapture(System.Drawing.Bitmap bitmap, bool forcePng = false)
         {
             string folder = Gallery.Store.State.ScreenshotFolder;
             if (string.IsNullOrWhiteSpace(folder)) folder = WindowsNative.ScreenshotFolder();
             Directory.CreateDirectory(folder);
-            string format = Gallery.Store.State.ScreenshotFormat ?? "PNG";
+            string format = forcePng ? "PNG" : Gallery.Store.State.ScreenshotFormat ?? "PNG";
             string extension = format == "JPG" ? ".jpg" : format == "BMP" ? ".bmp" : ".png";
             System.Drawing.Imaging.ImageFormat encoder = format == "JPG" ? System.Drawing.Imaging.ImageFormat.Jpeg : format == "BMP" ? System.Drawing.Imaging.ImageFormat.Bmp : System.Drawing.Imaging.ImageFormat.Png;
             for (int attempt = 0; attempt < 100; attempt++)
@@ -376,6 +390,11 @@ namespace ScreenLine
             throw new IOException("无法生成不重名的截图文件名。");
         }
 
+        internal async Task ProcessRegionCapture(System.Drawing.Bitmap bitmap)
+        {
+            if (bitmap == null) return;
+            await ProcessCapturedFile(SaveCapture(bitmap, true), "框选截图", "Hang");
+        }
         void OpenWebCapture()
         {
             if (WebCapture != null) { WebCapture.Activate(); return; }

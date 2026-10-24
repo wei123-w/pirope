@@ -74,3 +74,17 @@ body[data-mode="filters"] #editor .FIE_canvas-container{padding-bottom:140px!imp
 .SfxModal-Wrapper .SfxButton-root:last-child{background:#2463ae!important;border-color:#2463ae!important;color:#fff!important}
 .SfxModal-Wrapper .SfxButton-root:last-child:hover{background:#1b5498!important}
 @media(max-width:760px){header{padding:0 10px;gap:6px}.tools{gap:1px}.divider{margin:0 4px}.history{padding-right:6px}.primary{padding:0 13px}}
+
+body[data-capture="true"]{grid-template-rows:52px minmax(0,1fr);background:#000}
+body[data-capture="true"] header{z-index:20;display:flex;justify-content:center;gap:10px;background:rgba(255,255,255,.96);border:1px solid #dce2ea;border-radius:12px;margin:8px auto 0;padding:4px 8px;max-width:calc(100vw - 24px);width:max-content;box-shadow:0 4px 18px rgba(18,34,53,.2)}
+body[data-capture="true"] header>.history,body[data-capture="true"] header>.tools,body[data-capture="true"] header>.actions{display:none}
+.capture-tools,.capture-actions{align-items:center;gap:4px}
+body[data-capture="true"] .capture-tools,body[data-capture="true"] .capture-actions{display:flex}
+.capture-tools button,.capture-actions button{position:relative;width:38px;height:38px;border:0;border-radius:8px;background:transparent;color:#273343;font:20px "Segoe UI Symbol","Segoe UI",sans-serif;cursor:pointer}
+.capture-tools button:hover,.capture-actions button:hover{background:#edf4ff;color:#2463ae}
+.capture-tools button[aria-pressed="true"]{background:#e8f0fc;color:#2463ae;box-shadow:inset 0 0 0 1px #8db2e4}
+.capture-tools kbd{position:absolute;right:1px;bottom:0;font:9px "Segoe UI",sans-serif;color:#8893a1;background:rgba(255,255,255,.85);padding:0 2px;border-radius:3px}
+.capture-actions{border-left:1px solid #e3e7ed;padding-left:6px}
+#captureUndo{font-size:22px}#captureSaveLocal{font-size:21px}#captureCancel{font-size:28px}#captureConfirm{font-size:25px;color:#2463ae}
+body[data-capture="true"] #captureCanvas{position:fixed;z-index:10;touch-action:none;cursor:crosshair}
+.capture-text-editor{position:fixed;z-index:12;min-width:100px;min-height:38px;border:1px solid #2463ae;background:rgba(255,255,255,.9);color:#d64c46;font:24px "Microsoft YaHei",sans-serif;resize:both;outline:none}

@@ -23,6 +23,15 @@ namespace ScreenLine
         public string FullScreenShortcut { get; set; }
         public string WindowShortcut { get; set; }
         public string DelayShortcut { get; set; }
+        public string TranslateShortcut { get; set; }
+        public string ExplainShortcut { get; set; }
+        public string TextExtractShortcut { get; set; }
+        public string AiEndpoint { get; set; }
+        public string AiModel { get; set; }
+        [System.Web.Script.Serialization.ScriptIgnore]
+        public string AiApiKey { get; set; }
+        public string AiApiKeyProtected { get; set; }
+        public Dictionary<string, string> AnnotationHotkeys { get; set; }
         public string ScreenshotFolder { get; set; }
         public string ScreenshotFormat { get; set; }
         public int DelaySeconds { get; set; }
@@ -41,6 +50,13 @@ namespace ScreenLine
             Theme = "classic"; AutoHang = true; RevealOnStartup = true; ToggleShortcut = "Ctrl+Alt+T";
             RegionShortcut = "Ctrl+Alt+A"; FullScreenShortcut = "Ctrl+Alt+S";
             WindowShortcut = "Ctrl+Alt+W"; DelayShortcut = "Ctrl+Alt+D";
+            TranslateShortcut = "Ctrl+Shift+F"; ExplainShortcut = "Ctrl+Shift+J"; TextExtractShortcut = "Ctrl+Shift+O";
+            AiEndpoint = "https://api.openai.com/v1"; AiModel = "gpt-4o-mini";
+            AnnotationHotkeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Rect", "1" }, { "Ellipse", "2" }, { "Arrow", "3" }, { "Pen", "4" },
+                { "Mosaic", "5" }, { "Text", "6" }, { "Highlight", "7" }, { "Number", "8" }, { "Eyedropper", "9" }
+            };
             ScreenshotFormat = "PNG"; DelaySeconds = 3; ScreenshotAction = "Preview";
         }
     }
@@ -71,11 +87,31 @@ namespace ScreenLine
                 State.RecentCaptures.RemoveAll(item => item == null || string.IsNullOrWhiteSpace(item.Path));
                 if (State.WorkflowPresets == null) State.WorkflowPresets = new List<CaptureWorkflowPreset>();
                 State.WorkflowPresets.RemoveAll(item => item == null || string.IsNullOrWhiteSpace(item.Name));
+                if (State.AnnotationHotkeys == null) State.AnnotationHotkeys = new SavedState().AnnotationHotkeys;
+                else
+                {
+                    var defaultAnnotationHotkeys = new SavedState().AnnotationHotkeys;
+                    foreach (var pair in defaultAnnotationHotkeys)
+                        if (!State.AnnotationHotkeys.ContainsKey(pair.Key) || string.IsNullOrWhiteSpace(State.AnnotationHotkeys[pair.Key]))
+                            State.AnnotationHotkeys[pair.Key] = pair.Value;
+                }
                 if (string.IsNullOrWhiteSpace(State.ToggleShortcut)) State.ToggleShortcut = "Ctrl+Alt+T";
                 if (string.IsNullOrWhiteSpace(State.RegionShortcut)) State.RegionShortcut = "Ctrl+Alt+A";
                 if (string.IsNullOrWhiteSpace(State.FullScreenShortcut)) State.FullScreenShortcut = "Ctrl+Alt+S";
                 if (string.IsNullOrWhiteSpace(State.WindowShortcut)) State.WindowShortcut = "Ctrl+Alt+W";
                 if (string.IsNullOrWhiteSpace(State.DelayShortcut)) State.DelayShortcut = "Ctrl+Alt+D";
+                if (string.IsNullOrWhiteSpace(State.TranslateShortcut)) State.TranslateShortcut = "Ctrl+Shift+F";
+                if (string.IsNullOrWhiteSpace(State.ExplainShortcut)) State.ExplainShortcut = "Ctrl+Shift+J";
+                if (string.IsNullOrWhiteSpace(State.TextExtractShortcut)) State.TextExtractShortcut = "Ctrl+Shift+O";
+                if (string.IsNullOrWhiteSpace(State.AiEndpoint)) State.AiEndpoint = "https://api.openai.com/v1";
+                if (string.IsNullOrWhiteSpace(State.AiModel)) State.AiModel = "gpt-4o-mini";
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(State.AiApiKeyProtected))
+                        State.AiApiKey = Encoding.Unicode.GetString(ProtectedData.Unprotect(Convert.FromBase64String(State.AiApiKeyProtected), null, DataProtectionScope.CurrentUser));
+                }
+                catch (CryptographicException) { State.AiApiKey = null; }
+                catch (FormatException) { State.AiApiKey = null; }
                 if (string.IsNullOrWhiteSpace(State.ScreenshotFormat)) State.ScreenshotFormat = "PNG";
                 if (State.DelaySeconds < 1 || State.DelaySeconds > 60) State.DelaySeconds = 3;
                 if (string.IsNullOrWhiteSpace(State.ScreenshotAction)) State.ScreenshotAction = "Preview";
@@ -89,6 +125,7 @@ namespace ScreenLine
         {
             Directory.CreateDirectory(Root);
             string temporary = file + ".tmp";
+            State.AiApiKeyProtected = string.IsNullOrEmpty(State.AiApiKey) ? null : Convert.ToBase64String(ProtectedData.Protect(Encoding.Unicode.GetBytes(State.AiApiKey), null, DataProtectionScope.CurrentUser));
             File.WriteAllText(temporary, serializer.Serialize(State), new UTF8Encoding(false));
             FileRules.Commit(temporary, file);
         }

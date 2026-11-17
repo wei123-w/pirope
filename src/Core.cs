@@ -55,7 +55,7 @@ namespace ScreenLine
             AnnotationHotkeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Rect", "1" }, { "Ellipse", "2" }, { "Arrow", "3" }, { "Pen", "4" },
-                { "Mosaic", "5" }, { "Text", "6" }, { "Highlight", "7" }, { "Number", "8" }, { "Eyedropper", "9" }
+                { "Mosaic", "5" }, { "Text", "6" }, { "Highlight", "7" }, { "Number", "8" }, { "Eyedropper", "9" }, { "Eraser", "X" }
             };
             ScreenshotFormat = "PNG"; DelaySeconds = 3; ScreenshotAction = "Preview";
         }

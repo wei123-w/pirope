@@ -26,6 +26,7 @@ $files = [ordered]@{
     'third-party-notices\WebView2\NOTICE.txt' = 'vendor\WebView2\NOTICE.txt'
 }
 Copy-Item -LiteralPath $ExecutablePath -Destination (Join-Path $appPath 'PicRope.exe')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'build\capture') -Destination (Join-Path $appPath 'capture') -Recurse -Force
 foreach ($file in $files.GetEnumerator()) {
     $destination = Join-Path $appPath $file.Key
     New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null

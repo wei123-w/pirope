@@ -1,0 +1,76 @@
+<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildToolsPath)\Microsoft.Common.props" Condition="Exists('$(MSBuildToolsPath)\Microsoft.Common.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\Microsoft\NuGet\$(VisualStudioVersion)\Microsoft.NuGet.props" Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\NuGet\$(VisualStudioVersion)\Microsoft.NuGet.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <ProjectGuid>{0F62A7C5-2E47-4F19-A657-C3A61C93C124}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>ScreenLine</RootNamespace>
+    <AssemblyName>PicRope</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
+    <OutputPath>build\</OutputPath>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <RestorePackagesPath>$(UserProfile)\.nuget\packages</RestorePackagesPath>
+    <ApplicationManifest>src\app.manifest</ApplicationManifest>
+    <ApplicationIcon>src\assets\PicRope.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>vendor\WebView2\Microsoft.Web.WebView2.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Wpf">
+      <HintPath>vendor\WebView2\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.17" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR" Version="2.0.0" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR.Models.ChineseV6Small" Version="1.0.0" />
+    <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" Exclude="src\SnipLite\Program.cs" />
+    <EmbeddedResource Include="src\SnipLite\Localization\Resources\*.json">
+      <LogicalName>SnipLite.Localization.%(Filename).json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="src\SnipLite\Assets\PaperFold.wav">
+      <LogicalName>SnipLite.PaperFold.wav</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="src\assets\PicRope.ico">
+      <LogicalName>PicRope.Icon</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="src\assets\basket-*.png">
+      <LogicalName>PicRope.Basket.%(Filename)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="src\assets\envelope-*.png">
+      <LogicalName>PicRope.Envelope.%(Filename)</LogicalName>
+    </EmbeddedResource>
+    <None Include="src\App.config" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.WinFX.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.WinFX.targets')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.targets" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.targets')" />
+  <Import Project="$(MSBuildExtensionsPath)\Microsoft\NuGet\$(VisualStudioVersion)\Microsoft.NuGet.targets" Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\NuGet\$(VisualStudioVersion)\Microsoft.NuGet.targets')" />
+</Project>

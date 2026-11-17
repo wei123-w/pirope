@@ -1,10 +1,28 @@
-﻿param([switch]$DesktopTests, [switch]$FolderTests, [switch]$MenuTests, [switch]$EditorTests, [switch]$ThemeTests, [switch]$WindTests, [switch]$BasketTests, [switch]$ScrollTests, [switch]$BasketAppearanceTests, [switch]$BasketMotionTests, [switch]$UpdateTests, [switch]$TextTests, [switch]$EnvelopeMotionTests, [switch]$Package)
+param([switch]$DesktopTests, [switch]$FolderTests, [switch]$MenuTests, [switch]$EditorTests, [switch]$ThemeTests, [switch]$WindTests, [switch]$BasketTests, [switch]$ScrollTests, [switch]$BasketAppearanceTests, [switch]$BasketMotionTests, [switch]$UpdateTests, [switch]$TextTests, [switch]$EnvelopeMotionTests, [switch]$Package, [switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $frameworkPath = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
 $compilerPath = Join-Path $frameworkPath 'csc.exe'
 $buildPath = Join-Path $projectRoot 'build'
 New-Item -ItemType Directory -Path $buildPath -Force | Out-Null
+$dotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
+if (-not $dotnetCommand) {
+    $candidate = Join-Path $env:LOCALAPPDATA 'Programs\dotnet\dotnet.exe'
+    if (Test-Path -LiteralPath $candidate) { $dotnetCommand = Get-Item -LiteralPath $candidate }
+}
+if (-not $dotnetCommand) { throw '构建 SnipLite 截图组件需要 .NET 10 SDK；请安装后再运行 build.ps1。' }
+$dotnetPath = $dotnetCommand.Source
+if ([string]::IsNullOrWhiteSpace($dotnetPath)) { $dotnetPath = $dotnetCommand.FullName }
+$captureProject = Join-Path $projectRoot 'src\SnipLite\PicRopeCapture.csproj'
+$captureOutput = Join-Path $buildPath 'capture'
+if (Test-Path -LiteralPath $captureOutput) {
+    $resolvedBuild = [IO.Path]::GetFullPath($buildPath).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $resolvedCapture = [IO.Path]::GetFullPath($captureOutput)
+    if (-not $resolvedCapture.StartsWith($resolvedBuild, [StringComparison]::OrdinalIgnoreCase)) { throw '截图组件输出目录超出 build 目录。' }
+    Remove-Item -LiteralPath $resolvedCapture -Recurse -Force
+}
+& $dotnetPath publish $captureProject -c Release -r win-x64 --self-contained true -p:NuGetAudit=false -p:PublishTrimmed=false -o $captureOutput --nologo
+if ($LASTEXITCODE -ne 0) { throw 'SnipLite 截图组件构建失败' }
 $references = @(
     "/r:$frameworkPath\WPF\PresentationCore.dll",
     "/r:$frameworkPath\WPF\PresentationFramework.dll",
@@ -36,6 +54,8 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'vendor\Filerobot\LICENSE'),(Join
 Copy-Item -LiteralPath (Join-Path $projectRoot 'vendor\WebView2\LICENSE.txt'),(Join-Path $projectRoot 'vendor\WebView2\NOTICE.txt') -Destination (Join-Path $noticePath 'WebView2')
 Copy-Item -LiteralPath (Join-Path $projectRoot 'vendor\WebView2\Microsoft.Web.WebView2.Core.dll'),(Join-Path $projectRoot 'vendor\WebView2\Microsoft.Web.WebView2.Wpf.dll'),(Join-Path $projectRoot 'vendor\WebView2\WebView2Loader.dll') -Destination $buildPath
 Write-Output ('构建完成：' + (Join-Path $buildPath 'PicRope.exe'))
+
+if ($SkipTests) { return }
 
 if (-not ($FolderTests -or $MenuTests -or $EditorTests -or $ThemeTests -or $WindTests -or $EnvelopeMotionTests) -and (Test-Path -LiteralPath (Join-Path $projectRoot 'tests\CoreTests.cs'))) {
     & $compilerPath /nologo /target:exe /codepage:65001 "/out:$buildPath\CoreTests.exe" /main:ScreenLine.Tests.CoreTests $references (Join-Path $projectRoot 'src\Core.cs') (Join-Path $projectRoot 'src\SpringMotion.cs') (Join-Path $projectRoot 'tests\CoreTests.cs')

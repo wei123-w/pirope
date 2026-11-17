@@ -475,6 +475,20 @@ namespace ScreenLine
             flight.Show();
         }
 
+        internal async Task<bool> PinCapture(CaptureItem item)
+        {
+            if (closing || item == null || !gallery.Contains(item.Path)) return false;
+            MoveTo(WindowsNative.ScreenAtPointer());
+            Reveal(true, false, 3);
+            Update();
+            ShotCard card;
+            if (!cards.TryGetValue(item.Path, out card)) return false;
+            for (int attempt = 0; card.Flying && attempt < 200; attempt++) await Task.Delay(20);
+            if (closing || card.IsDisposed || card.Flying || card.Detached) return pins.ContainsKey(item.Path);
+            await ReleasePhoto(card);
+            return pins.ContainsKey(item.Path);
+        }
+
         async Task ReleasePhoto(ShotCard card)
         {
             if (card.Releasing || card.Flying || card.Detached) return;

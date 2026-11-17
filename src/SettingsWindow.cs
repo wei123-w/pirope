@@ -75,16 +75,16 @@ namespace ScreenLine
             general.Children.Add(Note("原有剪贴板收集与“新截图自动挂上”开关继续由托盘面板独立控制。"));
 
             var hotkeyPage = Page(); tabs.Items.Add(new TabItem { Header = "快捷键", Content = new ScrollViewer { Content = hotkeyPage, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
-            hotkeyPage.Children.Add(SectionTitle("全局快捷键", "点击快捷键框后直接按下组合键。"));
+            hotkeyPage.Children.Add(SectionTitle("全局快捷键", "点击快捷键框后直接按下单键或组合键。"));
             AddShortcut(hotkeyPage, "显示 / 收起绳子", "ToggleShortcut", state.ToggleShortcut, false);
             AddShortcut(hotkeyPage, "框选截图", "RegionShortcut", state.RegionShortcut, false);
             AddShortcut(hotkeyPage, "全屏截图", "FullScreenShortcut", state.FullScreenShortcut, false);
             AddShortcut(hotkeyPage, "活动窗口截图", "WindowShortcut", state.WindowShortcut, false);
             AddShortcut(hotkeyPage, "延时截图", "DelayShortcut", state.DelayShortcut, false);
-            AddShortcut(hotkeyPage, "AI 翻译", "TranslateShortcut", state.TranslateShortcut, false);
+            AddShortcut(hotkeyPage, "截图翻译", "TranslateShortcut", state.TranslateShortcut, false);
             AddShortcut(hotkeyPage, "AI 解释", "ExplainShortcut", state.ExplainShortcut, false);
-            AddShortcut(hotkeyPage, "AI 文字提取", "TextExtractShortcut", state.TextExtractShortcut, false);
-            shortcutHint = Note("快捷键至少包含 Ctrl、Alt、Shift 或 Win 中的一项。聚焦输入框后直接按键；Esc 或退格可清除。");
+            AddShortcut(hotkeyPage, "离线文字识别", "TextExtractShortcut", state.TextExtractShortcut, false);
+            shortcutHint = Note("单键或组合键均可设置。聚焦输入框后直接按键；Esc 或退格可清除。");
             hotkeyPage.Children.Add(shortcutHint);
             hotkeyPage.Children.Add(SectionTitle("标注工具快捷键", "进入截图标注后生效，聚焦输入框后直接按键设置。"));
             foreach (var item in AnnotationToolNames()) AddAnnotationShortcut(hotkeyPage, item.Value, item.Key, state.AnnotationHotkeys[item.Key]);
@@ -157,7 +157,7 @@ namespace ScreenLine
             box.PreviewKeyDown += CaptureKey;
             shortcuts[name] = box;
             var frame = new Border { BorderBrush = Brush("#DCE2EA"), BorderThickness = new Thickness(1), Background = Brush("#FAFBFC"), CornerRadius = new CornerRadius(7), Child = box };
-            box.GotKeyboardFocus += delegate { frame.BorderBrush = Brush("#4B83C3"); frame.BorderThickness = new Thickness(2); frame.Background = Brushes.White; shortcutHint.Text = "正在录入“" + label + "”：按下组合键，Esc 或退格可清除。"; shortcutHint.Foreground = Brush("#2463AE"); };
+            box.GotKeyboardFocus += delegate { frame.BorderBrush = Brush("#4B83C3"); frame.BorderThickness = new Thickness(2); frame.Background = Brushes.White; shortcutHint.Text = "正在录入“" + label + "”：按下单键或组合键，Esc 或退格可清除。"; shortcutHint.Foreground = Brush("#2463AE"); };
             box.LostKeyboardFocus += delegate { frame.BorderBrush = Brush("#DCE2EA"); frame.BorderThickness = new Thickness(1); frame.Background = Brush("#FAFBFC"); };
             var record = LightTheme.Button("录入", delegate { box.Focus(); error.Text = ""; }, "quiet"); record.MinWidth = 48; record.Height = 30; record.Margin = new Thickness(2);
             var entry = new DockPanel(); DockPanel.SetDock(record, Dock.Right); entry.Children.Add(record); entry.Children.Add(frame);
@@ -184,7 +184,6 @@ namespace ScreenLine
             if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0 || key == Key.LeftShift || key == Key.RightShift) parts.Add("Shift");
             if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0 || key == Key.LWin || key == Key.RWin) parts.Add("Win");
             if (modifierKey) { box.Text = string.Join("+", parts) + "+…"; error.Text = ""; return; }
-            if (parts.Count == 0) { error.Text = "快捷键必须包含至少一个修饰键。"; return; }
             string keyName = key.ToString();
             if (keyName.Length == 2 && keyName[0] == 'D' && char.IsDigit(keyName[1])) keyName = keyName.Substring(1);
             parts.Add(keyName);
@@ -260,7 +259,7 @@ namespace ScreenLine
                 new KeyValuePair<string, string>("Arrow", "箭头"), new KeyValuePair<string, string>("Pen", "画笔"),
                 new KeyValuePair<string, string>("Mosaic", "马赛克"), new KeyValuePair<string, string>("Text", "文字"),
                 new KeyValuePair<string, string>("Highlight", "高亮"), new KeyValuePair<string, string>("Number", "序号"),
-                new KeyValuePair<string, string>("Eyedropper", "取色")
+                new KeyValuePair<string, string>("Eyedropper", "取色"), new KeyValuePair<string, string>("Eraser", "橡皮擦")
             };
         }
 
@@ -315,7 +314,7 @@ namespace ScreenLine
             foreach (var pair in shortcuts) pair.Value.Text = (string)typeof(SavedState).GetProperty(pair.Key).GetValue(defaults, null);
             foreach (var pair in defaults.AnnotationHotkeys) annotationShortcuts[pair.Key].Text = pair.Value;
             aiProvider.SelectedItem = AiService.ProviderForEndpoint(defaults.AiEndpoint); aiEndpoint.Text = defaults.AiEndpoint; aiModel.Text = defaults.AiModel; aiApiKey.Password = "";
-            shortcutHint.Text = "快捷键至少包含 Ctrl、Alt、Shift 或 Win 中的一项。聚焦输入框后直接按键；Esc 或退格可清除。"; shortcutHint.Foreground = Brush("#65717F");
+            shortcutHint.Text = "单键或组合键均可设置。聚焦输入框后直接按键；Esc 或退格可清除。"; shortcutHint.Foreground = Brush("#65717F");
             revealOnStartup.IsChecked = defaults.RevealOnStartup; launchOnStartup.IsChecked = false; folder.Text = WindowsNative.ScreenshotFolder();
             format.SelectedItem = "PNG"; delay.SelectedItem = "3"; action.SelectedItem = "不弹出窗口"; error.Text = "默认值已恢复；点击保存后生效。";
             workflowPresets.Clear(); workflowList.ItemsSource = workflowPresets.ToArray();

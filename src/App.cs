@@ -358,12 +358,26 @@ namespace ScreenLine
                 }
                 bool allDisplays = false;
                 if (mode == 1 && !CaptureDialog.ChooseFullScreenTarget(Shelf, out allDisplays)) return;
-                using (var bitmap = mode == 0 ? ScreenCapture.Region(true, Gallery.Store.State.AnnotationHotkeys, actionOverride, (image, action, sourceLanguage, targetLanguage) => AiService.AskAsync(Gallery.Store.State, image, action, sourceLanguage, targetLanguage)) : mode == 4 ? ScreenCapture.Continuous() : mode == 2 ? ScreenCapture.ActiveWindow(targetWindow == IntPtr.Zero ? WindowsNative.GetForegroundWindow() : targetWindow) : ScreenCapture.FullScreen(allDisplays))
+                bool pinRequested = false;
+                System.Drawing.Bitmap captured;
+                SnipLiteCaptureResult snipResult = null;
+                if (mode == 0)
+                {
+                    string captureComponent = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "capture", "PicRopeCapture.exe");
+                    snipResult = await SnipLiteCaptureBridge.CaptureAsync(captureComponent, actionOverride);
+                    captured = snipResult == null ? null : snipResult.Image;
+                    pinRequested = snipResult != null && snipResult.Pin;
+                }
+                else if (mode == 4) captured = ScreenCapture.Continuous();
+                else if (mode == 2) captured = ScreenCapture.ActiveWindow(targetWindow == IntPtr.Zero ? WindowsNative.GetForegroundWindow() : targetWindow);
+                else captured = ScreenCapture.FullScreen(allDisplays);
+                using (var bitmap = captured)
                 {
                     if (bitmap == null) return;
                     if (mode == 0)
                     {
-                        await ProcessRegionCapture(bitmap);
+                        await ProcessRegionCapture(bitmap, pinRequested);
+                        if (snipResult != null && snipResult.Explain) ShowAiExplanation(bitmap);
                         return;
                     }
                     string modeName = mode == 0 ? "框选截图" : mode == 4 ? "连续截图拼接" : mode == 2 ? "活动窗口截图" : allDisplays ? "全部屏幕截图" : "全屏截图";
@@ -371,6 +385,14 @@ namespace ScreenLine
                 }
             }
             catch (Exception error) { Gallery.Store.Log(error); Notice("截图失败：" + error.Message); }
+        }
+
+        void ShowAiExplanation(System.Drawing.Bitmap image)
+        {
+            var requestImage = (System.Drawing.Bitmap)image.Clone();
+            var window = new AiExplanationWindow(() => AiService.AskAsync(Gallery.Store.State, requestImage, "Explain"));
+            window.FormClosed += delegate { requestImage.Dispose(); };
+            window.Show();
         }
 
         string SaveCapture(System.Drawing.Bitmap bitmap, bool forcePng = false)
@@ -392,8 +414,13 @@ namespace ScreenLine
 
         internal async Task ProcessRegionCapture(System.Drawing.Bitmap bitmap)
         {
+            await ProcessRegionCapture(bitmap, false);
+        }
+
+        internal async Task ProcessRegionCapture(System.Drawing.Bitmap bitmap, bool pin)
+        {
             if (bitmap == null) return;
-            await ProcessCapturedFile(SaveCapture(bitmap, true), "框选截图", "Hang");
+            await ProcessCapturedFile(SaveCapture(bitmap, true), "框选截图", pin ? "Pin" : "Hang");
         }
         void OpenWebCapture()
         {
@@ -424,6 +451,11 @@ namespace ScreenLine
             if (action == "Copy") Act(ShotAction.Copy, item);
             else if (action == "Edit") Act(ShotAction.Edit, item);
             else if (action == "Hang") Captures.Hang(item);
+            else if (action == "Pin")
+            {
+                if (!Gallery.Contains(item.Path)) Captures.Hang(item);
+                if (!await Shelf.PinCapture(item)) Notice("截图已保存并加入图绳，但贴图窗口未能打开。");
+            }
             else if (action == "Basket") ShowBasket();
         }
 

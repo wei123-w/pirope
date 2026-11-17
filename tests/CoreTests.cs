@@ -304,12 +304,12 @@ namespace ScreenLine.Tests
                 Check(restored.State.AiApiKey == "secret-test-key");
             });
             Console.WriteLine("核心测试：{0} 通过，{1} 失败", passed, failed);
-            Run("标注快捷键默认为 1 到 9", delegate
+            Run("标注快捷键默认保留 1 到 9 并包含橡皮擦", delegate
             {
                 var property = typeof(SavedState).GetProperty("AnnotationHotkeys");
                 Check(property != null);
                 var hotkeys = property.GetValue(new SavedState(), null) as System.Collections.IDictionary;
-                Check(hotkeys.Count == 9);
+                Check(hotkeys.Count == 10 && Convert.ToString(hotkeys["Eraser"]) == "X");
                 Check(Convert.ToString(hotkeys["Rect"]) == "1" && Convert.ToString(hotkeys["Ellipse"]) == "2" && Convert.ToString(hotkeys["Arrow"]) == "3");
                 Check(Convert.ToString(hotkeys["Pen"]) == "4" && Convert.ToString(hotkeys["Mosaic"]) == "5" && Convert.ToString(hotkeys["Text"]) == "6");
                 Check(Convert.ToString(hotkeys["Highlight"]) == "7" && Convert.ToString(hotkeys["Number"]) == "8" && Convert.ToString(hotkeys["Eyedropper"]) == "9");
@@ -323,7 +323,7 @@ namespace ScreenLine.Tests
                 var property = typeof(SavedState).GetProperty("AnnotationHotkeys");
                 Check(property != null);
                 var hotkeys = property.GetValue(restored.State, null) as System.Collections.IDictionary;
-                Check(hotkeys.Count == 9 && Convert.ToString(hotkeys["Mosaic"]) == "5");
+                Check(hotkeys.Count == 10 && Convert.ToString(hotkeys["Mosaic"]) == "5" && Convert.ToString(hotkeys["Eraser"]) == "X");
             });
             Run("部分标注快捷键保留自定义值并补齐其余项", delegate
             {
@@ -334,8 +334,8 @@ namespace ScreenLine.Tests
                 var property = typeof(SavedState).GetProperty("AnnotationHotkeys");
                 Check(property != null);
                 var hotkeys = property.GetValue(restored.State, null) as System.Collections.IDictionary;
-                Check(hotkeys.Count == 9 && Convert.ToString(hotkeys["Rect"]) == "Q");
-                Check(Convert.ToString(hotkeys["Pen"]) == "P" && Convert.ToString(hotkeys["Mosaic"]) == "5");
+                Check(hotkeys.Count == 10 && Convert.ToString(hotkeys["Rect"]) == "Q");
+                Check(Convert.ToString(hotkeys["Pen"]) == "P" && Convert.ToString(hotkeys["Mosaic"]) == "5" && Convert.ToString(hotkeys["Eraser"]) == "X");
             });
             Run("标注快捷键保存后可恢复", delegate
             {

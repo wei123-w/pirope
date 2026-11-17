@@ -46,6 +46,8 @@ namespace ScreenLine.Tests
 
         static async Task Run(bool live)
         {
+            Check(AppUpdates.Repository == "https://github.com/wei123-w/pirope"
+                && AppUpdates.Endpoint == "https://api.github.com/repos/wei123-w/pirope/releases/latest", "更新检查与发布说明统一指向图绳仓库");
             root = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test-data", "updates-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
             string fixture = Path.Combine(root, "fixture.exe");
             using (var compiler = CodeDomProvider.CreateProvider("CSharp"))

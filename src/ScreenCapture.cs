@@ -40,11 +40,19 @@ namespace ScreenLine
 
         public static Bitmap Region(bool annotate = true, System.Collections.Generic.IDictionary<string, string> hotkeys = null, string initialAiAction = null, System.Func<Bitmap, string, string, string, System.Threading.Tasks.Task<string>> aiAction = null)
         {
+            bool ignored;
+            return Region(out ignored, annotate, hotkeys, initialAiAction, aiAction);
+        }
+
+        internal static Bitmap Region(out bool pinRequested, bool annotate = true, System.Collections.Generic.IDictionary<string, string> hotkeys = null, string initialAiAction = null, System.Func<Bitmap, string, string, string, System.Threading.Tasks.Task<string>> aiAction = null)
+        {
+            pinRequested = false;
             Rectangle bounds = SystemInformation.VirtualScreen;
             using (var desktop = Copy(bounds))
             using (var overlay = new RegionOverlay(desktop, bounds, annotate, hotkeys, aiAction, initialAiAction))
             {
                 if (overlay.ShowDialog() != DialogResult.OK || overlay.Result == null) return null;
+                pinRequested = overlay.PinRequested;
                 return (Bitmap)overlay.Result.Clone();
             }
         }

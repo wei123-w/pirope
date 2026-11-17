@@ -1573,9 +1573,20 @@ namespace ScreenLine.Tests
             settings.Show();
             var field = typeof(SettingsWindow).GetField("annotationShortcuts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var inputs = (System.Collections.Generic.Dictionary<string, System.Windows.Controls.TextBox>)field.GetValue(settings);
-            Check(inputs.Count == 9, "快捷键设置页提供九种标注工具录入框");
+            var globalInputs = (System.Collections.Generic.Dictionary<string, System.Windows.Controls.TextBox>)typeof(SettingsWindow).GetField("shortcuts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(settings);
+            var globalCapture = typeof(SettingsWindow).GetMethod("CaptureKey", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var globalKey = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(settings), Environment.TickCount, System.Windows.Input.Key.Q) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+            globalCapture.Invoke(settings, new object[] { globalInputs["RegionShortcut"], globalKey });
+            Check(globalInputs["RegionShortcut"].Text == "Q", "全局快捷键允许直接录入单个按键");
+            var parseShortcut = typeof(WindowsEvents).GetMethod("ParseShortcut", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var parsedShortcut = new object[] { "Q", 0u, 0u };
+            Check((bool)parseShortcut.Invoke(null, parsedShortcut) && (uint)parsedShortcut[1] == 0 && (uint)parsedShortcut[2] == (uint)'Q', "全局快捷键单键能够被系统注册模块识别");
+            using (var singleKeyEvents = new WindowsEvents(new SavedState { ToggleShortcut = "Q", RegionShortcut = null, FullScreenShortcut = null, WindowShortcut = null, DelayShortcut = null, TranslateShortcut = null, ExplainShortcut = null, TextExtractShortcut = null }))
+                Check(singleKeyEvents.ShortcutAvailable, "系统成功注册无修饰键的全局快捷键");
+            Check(inputs.Count == 10, "快捷键设置页提供十种标注工具录入框");
             var reset = typeof(SettingsWindow).GetMethod("Reset", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             reset.Invoke(settings, new object[] { null, null });
+            globalInputs["RegionShortcut"].Text = "Q";
             Check(inputs["Rect"].Text == "1" && inputs["Eyedropper"].Text == "9", "恢复默认时还原标注快捷键 1 至 9");
             var capture = typeof(SettingsWindow).GetMethod("CaptureAnnotationKey", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var normalizeKey = typeof(SettingsWindow).GetMethod("NormalizeAnnotationKey", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
@@ -1590,7 +1601,7 @@ namespace ScreenLine.Tests
             Check(saved == null, "重复标注快捷键会阻止保存");
             inputs["Ellipse"].Text = "2";
             typeof(SettingsWindow).GetMethod("Save", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(settings, new object[] { null, new RoutedEventArgs() });
-            Check(saved != null && saved.AnnotationHotkeys["Rect"] == "Q", "保存设置保留录入的标注快捷键");
+            Check(saved != null && saved.AnnotationHotkeys["Rect"] == "Q" && saved.RegionShortcut == "Q", "保存设置保留单键全局快捷键和标注快捷键");
         }
 
         static async Task CheckCaptureEditor(StateStore store)
@@ -1618,7 +1629,7 @@ namespace ScreenLine.Tests
                 overlay.CancelSelection();
                 Check(overlay.Result == null, "取消标注时直接丢弃内存结果");
             }
-            var process = typeof(DesktopController).GetMethod("ProcessRegionCapture", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var process = typeof(DesktopController).GetMethod("ProcessRegionCapture", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(Drawing.Bitmap) }, null);
             Check(process != null, "确认结果接入直接挂绳的截图处理流程");
             int before = controller.Gallery.Items.Count;
             using (var confirmed = new Drawing.Bitmap(8, 4))
@@ -1627,6 +1638,25 @@ namespace ScreenLine.Tests
             var saved = controller.Gallery.Store.State.RecentCaptures.FirstOrDefault(item => item.Mode == "框选截图" && File.Exists(item.Path));
             Check(saved != null && Path.GetExtension(saved.Path) == ".png", "确认后强制保存 PNG 并记录框选截图历史");
             Check(controller.Gallery.Items.Any(item => FileRules.SameFile(item.Path, saved.Path)), "确认后的框选截图直接挂到图绳");
+            var pinProcess = typeof(DesktopController).GetMethod("ProcessRegionCapture", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(Drawing.Bitmap), typeof(bool) }, null);
+            int beforePin = controller.Gallery.Items.Count;
+            using (var pinnedCapture = new Drawing.Bitmap(9, 5))
+                await (Task)pinProcess.Invoke(controller, new object[] { pinnedCapture, true });
+            await Until(() => controller.Gallery.Items.Count == beforePin + 1 && controller.Shelf.PinWindows.Any());
+            var screenshotPin = controller.Shelf.PinWindows.Single();
+            Check(screenshotPin.Topmost && controller.Gallery.Items.Any(item => FileRules.SameFile(item.Path, controller.Gallery.Store.State.RecentCaptures[0].Path)), "截图贴图同时置顶并保留图绳记录");
+            screenshotPin.Close();
+            await Until(() => !controller.Shelf.PinWindows.Any());
+            using (var source = new Drawing.Bitmap(80, 60))
+            using (var overlay = new RegionOverlay(source, new Drawing.Rectangle(0, 0, 80, 60), true, null))
+            {
+                overlay.SetSelection(new Drawing.Rectangle(5, 5, 40, 30));
+                var toolbar = (Forms.ToolStrip)typeof(RegionOverlay).GetField("toolbar", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(overlay);
+                var pin = toolbar.Items.OfType<Forms.ToolStripButton>().Single(button => button.Tag as string == "Pin");
+                pin.PerformClick();
+                var pinRequested = typeof(RegionOverlay).GetProperty("PinRequested", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Check((bool)pinRequested.GetValue(overlay, null) && overlay.Result != null, "贴图按钮将标注结果作为置顶截图提交");
+            }
         }
 
         static void CheckToolbarPlacement()
@@ -1643,6 +1673,7 @@ namespace ScreenLine.Tests
                 overlay.SetSelection(new Drawing.Rectangle(100, 100, 200, 120));
                 Check(colorToolbar != null && paletteShownField != null && !(bool)paletteShownField.GetValue(overlay), "移动选区时隐藏颜色选择栏");
                 Check(toolbar.Items.OfType<Forms.ToolStripButton>().Any(button => button.Tag as string == "ExtractText"), "截图标注工具栏提供 AI 文字提取动作");
+                Check(toolbar.Items.OfType<Forms.ToolStripButton>().Any(button => button.Tag as string == "Pin" && button.AccessibleName == "贴图置顶"), "截图标注工具栏提供贴图置顶操作");
                 var rectangleTool = toolbar.Items.OfType<Forms.ToolStripButton>().Single(button => button.Tag as string == "Rect");
                 var penTool = toolbar.Items.OfType<Forms.ToolStripButton>().Single(button => button.Tag as string == "Pen");
                 rectangleTool.PerformClick();

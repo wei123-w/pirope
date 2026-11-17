@@ -21,3 +21,9 @@ Copyright (c) 2022 scaleflex，MIT 许可。
 https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31
 Copyright (C) Microsoft Corporation. All rights reserved.
 完整许可及第三方声明见 third-party-notices/WebView2。
+
+截图覆盖层基于 SnipLite 开源项目移植并作为独立组件随程序发布，图绳负责截图收纳、记录和贴图：
+https://github.com/GxDongV/SnipLite
+Copyright (c) 2026 SnipLite contributors
+MIT License
+SnipLite 原始许可文本与 OCR、条码及 .NET 依赖声明随 `capture` 组件发布，见 `capture\Legal`。

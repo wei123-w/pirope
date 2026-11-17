@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "dgSpecHash": "VS51VlH7t7M=",
+  "success": true,
+  "projectFilePath": "E:\\项目开发\\PicRope-main\\src\\SnipLite\\PicRopeCapture.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\tjy\\.nuget\\packages\\interop.uiautomationclient\\10.19041.0\\interop.uiautomationclient.10.19041.0.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\sdcb.simdpaddleocr\\2.0.0\\sdcb.simdpaddleocr.2.0.0.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\sdcb.simdpaddleocr.modelprovider\\1.0.0\\sdcb.simdpaddleocr.modelprovider.1.0.0.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\sdcb.simdpaddleocr.models.chinesev6small\\1.0.0\\sdcb.simdpaddleocr.models.chinesev6small.1.0.0.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\sdcb.simdpaddleocr.models.textlineorientation\\1.0.0\\sdcb.simdpaddleocr.models.textlineorientation.1.0.0.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\zxing.net\\0.16.11\\zxing.net.0.16.11.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\zxing.net.bindings.windows.compatibility\\0.16.17\\zxing.net.bindings.windows.compatibility.0.16.17.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.15\\microsoft.netcore.app.runtime.win-x64.10.0.15.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.15\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.15.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.15\\microsoft.aspnetcore.app.runtime.win-x64.10.0.15.nupkg.sha512",
+    "C:\\Users\\tjy\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512"
+  ],
+  "logs": []
+}

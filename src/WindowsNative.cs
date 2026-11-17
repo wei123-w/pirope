@@ -193,7 +193,7 @@ namespace ScreenLine
             modifiers = 0; key = 0;
             if (string.IsNullOrWhiteSpace(value)) return false;
             var parts = value.Split('+');
-            if (parts.Length < 2) return false;
+            if (parts.Length == 0) return false;
             for (int i = 0; i < parts.Length - 1; i++)
             {
                 switch (parts[i].Trim().ToLowerInvariant())
@@ -205,7 +205,6 @@ namespace ScreenLine
                     default: return false;
                 }
             }
-            if (modifiers == 0) return false;
             string name = parts[parts.Length - 1].Trim();
             if (name.Length == 1 && char.IsLetterOrDigit(name[0])) { key = char.ToUpperInvariant(name[0]); return true; }
             System.Windows.Input.Key parsed;
